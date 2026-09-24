@@ -1,34 +1,13 @@
-# OmniFleet T2 workspace backup
+# OmniFleet robot 113 workspace source backup
 
-Snapshot source: `iecme@192.168.3.113`
-Snapshot time: `2026-09-07`
+Source: `/home/iecme/workspace` on `iecme@192.168.3.113`  
+Snapshot date: 2026-09-24  
+Original tar SHA-256: `05a00928acd12cdf1eb63e52f55b84f06f44f9e487f1b84a07ac77d112354c2e`
 
-## Included
+The repository root follows the subsystem grouping used by [Autoware Universe](https://github.com/autowarefoundation/autoware_universe): `common`, `control`, `localization`, `perception`, `planning`, `sensing`, `simulator`, `system`, `vehicle`, and `visualization`. These categories organize the existing robot code; they do not make it an Autoware project. Each category retains the original workspace and `src` path so package provenance is visible. Non-`src` configuration and scripts are under `system/workspace_support`, except Foxglove files under `visualization`.
 
-- `hardware_drivers_ws.tar.gz`
-- `mola_3_2_ws.tar.gz`
-- `omnifleet_t2_ws.tar.gz`
-- `omnifleet_t2_mola_experiments_ws.tar.gz`
+`SOURCE_PATHS.tsv` maps every repository file or symlink back to its original path. All six workspaces from the source root are represented. Restore on Linux by copying each mapped path to the original relative path beneath a new workspace directory. Git stores the original relative symlink targets.
 
-Each archive contains the workspace source/configuration tree. The T2 archive includes its runtime configuration, including `runtime/etc/omnifleet_t2/robot.env`; this repository must remain private because it contains robot/network/device configuration.
+Excluded from this Git source backup: ROS/colcon `build`, `install`, and `log` outputs; nested `.git` histories; Python caches; Foxglove `node_modules`; MOLA generated reports and dependency mirrors; historical backups; crash dumps. Rebuild dependencies and generated files when restoring. The original compressed source snapshot remains on robot 113 at `/home/iecme/robot_backups/workspace_autoware_root_20260924/workspace-source.tar.gz` and has the SHA-256 above.
 
-## Excluded
-
-- Rebuildable `build/`, `install/`, `log/`, `Log/` directories
-- Nested `.git/` metadata and Python caches
-- `/home/iecme/omnifleet_t2_ws/backups/` historical crash/backups directory
-- The unreadable file `omnifleet_t2_ws/backups/mola-cli-crash-20260901.crash`
-- API keys, access tokens, and GitHub/Gitee credentials
-
-## Restore
-
-From the parent directory of the desired restore location:
-
-```bash
-tar -xzf hardware_drivers_ws.tar.gz
-tar -xzf mola_3_2_ws.tar.gz
-tar -xzf omnifleet_t2_ws.tar.gz
-tar -xzf omnifleet_t2_mola_experiments_ws.tar.gz
-```
-
-`SHA256SUMS` is the source-host checksum manifest for the four archives. The local copies were checked against it before upload.
+This repository is private because robot, device and network configuration are included. The snapshot was scanned for high-confidence API tokens and private key markers before import.
