@@ -15,3 +15,7 @@ This repository is private because robot, device and network configuration are i
 ## Foxglove update (2026-09-26)
 
 The current Foxglove source and optimized artifacts from robot 113 are under `visualization/omnifleet_t2_ws/foxglove`. Layout/style snapshots are under `visualization/foxglove_layouts`; WebSocket/Zenoh and extension optimization evidence is under `visualization/foxglove_optimized`. Their individual README files describe the source paths and exclusions. The payload SHA-256 is recorded in `visualization/foxglove_snapshot.sha256`.
+
+## Multi-robot shared-map and Zenoh update (2026-09-26)
+
+The repository now includes the related 113 materials under `system/README_MULTI_ROBOT_ZENOH.md`, with a path manifest at `system/MULTI_ROBOT_ZENOH_PATHS.tsv` and source snapshot hash at `system/MULTI_ROBOT_ZENOH_SNAPSHOT.sha256`.
