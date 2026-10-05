@@ -42,3 +42,8 @@ in Linux/local/Git together. This stage contains no deletion command.
 LocalizationUpdate adds optional twist and twist_cov; absence preserves zero output.
 The smoother's publication options and bridge wheel-source options are opt in.
 FEATURE_PARAMETER_MATRIX.md documents package, function and parameter coverage.
+
+The runtime fleet environment must be updated from system/zenoh_gateway/env.bash
+together with latest_env.bash before replay. The fleet environment performs the
+single loader-path reset and then restores sensor, project and patched Zenoh paths;
+the experiment subprocess must not reset those paths a second time.

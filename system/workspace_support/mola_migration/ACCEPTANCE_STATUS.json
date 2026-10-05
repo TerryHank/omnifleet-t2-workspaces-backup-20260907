@@ -10,5 +10,6 @@
   "yaml_syntax": "PASS: 5 files",
   "existing_python_contracts": "PASS: 12 tests",
   "legacy_integrity": "PASS: 29 moved old trees unchanged",
-  "ssh": "NOT_REQUESTED: local code stage only"
+  "ssh": "NOT_REQUESTED: local code stage only",
+  "shell_syntax": "PASS: latest_env.bash and Zenoh gateway env"
 }

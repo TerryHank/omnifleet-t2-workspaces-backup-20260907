@@ -248,7 +248,6 @@ def _launch(context):
             cmd=[
                 "bash", "-lc",
                 "source /home/iecme/omnifleet_fleet/env.bash; "
-                "source /home/iecme/workspace/mola_latest_20260917_ws/latest_env.bash; "
                 "source /home/iecme/workspace/mola_latest_20260917_ws/install/local_setup.bash; " +
                 ("source /home/iecme/fleet_rmw_zenoh_trace_ws/install/local_setup.bash; "
                  if os.environ.get("RMW_ZENOH_TRACE_FILE") else "") +
