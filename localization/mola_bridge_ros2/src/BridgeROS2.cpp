@@ -2153,8 +2153,10 @@ void BridgeROS2::broadcastCachedLocalizationTf(bool onlyIfRep105)
   if (!node) return;
   if (!params_.publish_in_sim_time)
   {
-    const auto source_stamp = mrpt::ros2bridge::toROS(entry.scan_timestamp);
-    const auto age = node->now() - source_stamp;
+    const auto now = node->now();
+    const rclcpp::Time source_stamp(
+        mrpt::ros2bridge::toROS(entry.scan_timestamp).nanoseconds(), now.get_clock_type());
+    const auto age = now - source_stamp;
     if (age > rclcpp::Duration::from_seconds(0.5))
     {
       return;

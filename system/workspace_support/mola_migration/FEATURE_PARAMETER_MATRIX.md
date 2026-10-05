@@ -1,6 +1,6 @@
 # MOLA 功能与参数迁移对照
 
-状态：本地与 Git 已按用户授权只保留新版一份；旧源码已在项目外逐文件校验归档。Linux 构建、回放和机器人验收仍未执行，不能把源码清理视为机器人验收通过。
+状态：本地与 Git 各保留一份新版，每个 MOLA 包仅有一个规范源码根目录。机器人已切换到 `mola_latest_20260917_ws`；37 包构建、20 项测试门、回放和静止传感器验收通过。旧机器人工作区已在项目外归档并校验后删除，详情见 `ROBOT_ACCEPTANCE_REPORT.md`。
 
 ## 包覆盖
 
@@ -13,7 +13,7 @@
 | mola_common | 0.6.1 | 0.6.1 | 之前字节相同，继续共享 | 0 |
 | mola_demos | 3.2.0 | 3.2.1 | 新版实现优先 | 0 |
 | mola_georeferencing | 2.4.2 | 2.4.2 | 之前字节相同，继续共享 | 0 |
-| mola_gtsam_factors | 2.4.2 | 2.4.2 | 新版实现优先 | 0 |
+| mola_gtsam_factors | 2.4.2 | 2.4.2 | 新版实现优先；缺失 API 的历史测试归档 | 2 |
 | mola_imu_preintegration | 1.17.1 | 2.0.0 | 新版实现优先 | 0 |
 | mola_input_euroc_dataset | 3.0.0 | 3.0.0 | 之前字节相同，继续共享 | 0 |
 | mola_input_kitti360_dataset | 3.0.0 | 3.0.0 | 之前字节相同，继续共享 | 0 |
@@ -48,16 +48,16 @@
 
 | 功能 | 候选处理 | 验收证据或门槛 |
 |---|---|---|
-| 估计速度及 6×6 协方差 | LocalizationUpdate 可选字段；smoother publish_twist 默认 false，实验 smoother_direct 显式开启 | test-publish-map-to-odom + test-odometry-twist；C++ 待构建 |
-| 直接 map→odom | 从估计器图变量发布；源帧与输出 child 分离；默认关闭 | 禁用/启用/child 覆盖/不存在源帧测试；回放确认唯一 TF owner |
-| 新鲜轮速优先 | 时间有效时速度和协方差整体采用轮速；过期/提前超过 0.1s 回退估计；拒绝缓存时间倒退 | 新 C++ 测试覆盖零值、估计、轮速、0.5s/-0.1s 边界和过期回退 |
-| IMU 采集时间 | 明确使用输入 header.stamp，不依赖 MRPT 转换版本 | Linux ROS 消息回归待执行 |
-| 新版地图输出 | 保留独立 map executor、流式点云 SensorDataQoS 和导航全程 deskew | 回放/静止传感器检查地图、点云及旧地图 mm 读取 |
-| 生产及四个实验 profile | simple_direct / simple_direct_observation / simple_rep105 / smoother_direct 保留；规范加载 latest 环境 | Python 语法/配置合同检查；Linux 启动和图验收待执行 |
-| ROS namespace/TF | 保留新版 robot_113 输出重映射与 fleet_scope；旧未命名空间的测试预期已更新 | ROS_ARGS 与 launch SetRemap 的最终优先级、订阅连接和 TF owner 必须在回放验证 |
-| 数据集/地图导入导出/GNSS/GUI工具 | 35 个旧包全部有新版对应，保留新版新包；脚本和服务采用新版 | Linux upstream tests、CLI help、地图保存/重载和导出待执行；未证明 GUI/全部数据集运行 |
-| 诊断及线程处理 | 新版 CallbackTrace、地图线程和安全退出优先；不恢复旧绝对路径 causal_trace 头文件或默认 crash 前缀 | 退出/线程回归待执行 |
-| 旧测试 | gtsam 旧 IMU helper 和有效 map→odom 测试已注册；其余 10 个未注册历史测试保存在项目外归档和 Git 历史 | 不以测试文件存在推断 async_backend 等未实现 API；避免人为新增历史未实现功能 |
+| 估计速度及 6×6 协方差 | LocalizationUpdate 可选字段；smoother `publish_twist` 默认 false，实验 `smoother_direct` 显式开启 | C++ 构建和 20 项测试门通过；桥接速度/协方差回归见 `evidence/bridge_twist_regression.json` |
+| 直接 map→odom | 从估计器图变量发布；源帧与输出 child 分离；默认关闭 | 禁用/启用/child 覆盖/未知源帧测试通过；运行中 map TF owner 唯一 |
+| 新鲜轮速优先 | 时间有效时速度和协方差整体采用轮速；过期/提前超过 0.1s 回退估计；拒绝缓存时间倒退 | C++ 测试覆盖零值、估计、轮速、0.5s/-0.1s 边界和过期回退；桥接回归通过 |
+| IMU 采集时间 | ROS bridge 保留输入时间戳的时钟来源，避免不同 ROS clock type 相减 | bridge 重建、odometry 回归和静止传感器采样通过 |
+| 新版地图输出 | 保留独立 map executor、流式点云 SensorDataQoS 和导航全程 deskew | 23 帧录包回放、原生地图保存/重载、实时传感器和 500x500 地图导出通过 |
+| 生产及四个实验 profile | `simple_direct` / `simple_direct_observation` / `simple_rep105` / `smoother_direct` 保留；加载统一 latest 环境 | 脚本与配置检查通过；机器人生产 `simple_direct` 在线，smoother direct TF 与静态/运动 georeferencing 集成通过 |
+| ROS namespace/TF | 保留新版 `robot_113` 输出重映射与 fleet_scope；旧未命名空间的测试预期已更新 | 实时订阅与命名空间通过；map→base_link 只有一个 MOLA owner |
+| 数据集/地图导入导出/GNSS/GUI工具 | 35 个旧包全部有新版对应，保留新版新包；脚本和服务采用新版 | 37 包构建、20 项测试门、原生地图重载和 PGM/YAML 导出、静态/运动 georeferencing 通过；GUI 与全部数据集未逐一实测 |
+| 诊断及线程处理 | 新版 CallbackTrace、地图线程和安全退出优先；不恢复旧绝对路径 causal_trace 头文件或默认 crash 前缀 | 全部已注册包测试通过；未单独执行长时间 GUI/线程压力测试 |
+| 旧测试 | 有效 map→odom 测试已注册并通过；GTSAM IMU helper 测试引用缺失头文件，移除无效注册；共 11 个不适用历史测试保存在外部归档和 Git 历史 | 依据 CMake 注册和实际测试结果判断，不把未注册测试当成功能证据 |
 
 ## 参数链
 

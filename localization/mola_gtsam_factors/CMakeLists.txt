@@ -74,10 +74,6 @@ mola_add_library(
 # define tests:
 #enable_testing()
 #add_subdirectory(module/tests)
-if(BUILD_TESTING)
-  enable_testing()
-  add_subdirectory(tests)
-endif()
 
 # -----------------------------------------------------------------------------
 #  ROS2

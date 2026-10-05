@@ -226,14 +226,17 @@ void test_2_poses_too_late()
     mola::state_estimation_smoother::StateEstimationSmoother nav;
     nav.initialize(mrpt::containers::yaml::FromText(navStateParams));
 
-    const auto t0 = mrpt::Clock::fromDouble(0.0);
-    const auto t1 = mrpt::Clock::fromDouble(0.5);
+    // Keep both early and late queries after the Unix epoch: negative
+    // Clock::fromDouble conversions are not portable across architectures.
+    constexpr double epoch = 1000.0;
+    const auto t0 = mrpt::Clock::fromDouble(epoch);
+    const auto t1 = mrpt::Clock::fromDouble(epoch + 0.5);
 
     // too late/early to extrapolate!! must return nullopt:
     const auto t2 =
-        mrpt::Clock::fromDouble(nav.parameters().max_time_to_use_velocity_model + 0.5 + 0.1);
+        mrpt::Clock::fromDouble(epoch + nav.parameters().max_time_to_use_velocity_model + 0.5 + 0.1);
     const auto t3 =
-        mrpt::Clock::fromDouble(0.0 - 0.1 - nav.parameters().max_time_to_use_velocity_model);
+        mrpt::Clock::fromDouble(epoch - 0.1 - nav.parameters().max_time_to_use_velocity_model);
 
     nav.fuse_pose(t0, _.pdf0, "odom");
     nav.fuse_pose(t1, _.pdf1, "odom");
