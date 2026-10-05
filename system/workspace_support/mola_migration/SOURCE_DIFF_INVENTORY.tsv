@@ -452,3 +452,5 @@ mp2p_icp_viz	apps/imgui_app_common/src/SimpleFileDialog.cpp	latest_only
 mp2p_icp_viz	apps/mm-viewer/CMakeLists.txt	changed_latest_or_port
 mp2p_icp_viz	apps/mm-viewer/main.cpp	changed_latest_or_port
 mp2p_icp_viz	package.xml	changed_latest_or_port
+mola_gtsam_factors	tests/CMakeLists.txt	old_only_obsolete
+mola_gtsam_factors	tests/test_imu_helpers.cpp	old_only_obsolete
