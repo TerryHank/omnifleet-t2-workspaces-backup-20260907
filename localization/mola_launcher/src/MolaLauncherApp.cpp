@@ -100,8 +100,13 @@ std::string relative_to_abs_path(
 
 MolaLauncherApp::MolaLauncherApp() : mrpt::system::COutputLogger("MolaLauncherApp")
 {
-  // Add build-time predefined path:
-  safe_add_to_list(BUILDTIME_MOLA_MODULES_LIB_PATH, lib_search_paths_);
+  // An explicit runtime module path takes precedence over the build-tree path.
+  // Installed deployments may retain build directories for compilation, but
+  // the launcher must load its modules from the selected install prefix.
+  if (mrpt::get_env<std::string>("MOLA_MODULES_LIB_PATH").empty())
+  {
+    safe_add_to_list(BUILDTIME_MOLA_MODULES_LIB_PATH, lib_search_paths_);
+  }
   safe_add_to_list(BUILDTIME_MOLA_MODULES_SHARED_PATH, shared_search_paths_);
 
   // Add paths from environment variable:
