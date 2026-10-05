@@ -2,9 +2,12 @@
 Status: PENDING_LINUX_VALIDATION. No robot connection or deployment is performed in this stage.
 
 The active tree has 37 canonical MOLA package roots under localization/<package>.
-The 24 differing legacy packages, four metadata groups and old workspace source
-archives remain under localization/_legacy_mola_3_2_pending_validation with COLCON_IGNORE.
-They are unchanged and must stay until every robot acceptance gate passes.
+The 24 legacy packages, four metadata groups and old source archives were retired
+from the local project and Git branch by explicit user approval on 2026-10-05.
+They were archived outside the project and verified before removal; see
+RETIREMENT_RECORD.json. Git history and the rollback tag retain recovery.
+Every active MOLA package now has exactly one source directory.
+Linux compilation and runtime acceptance remain pending; the robot is untouched.
 
 Base: 8c3fae37989f7488503f35ae6ba0c0b093bb7b03.
 Rollback: pre-mola-latest-consolidation-20261005; raw archive and existing backup tags remain.
@@ -34,9 +37,10 @@ and external MRPT/GTSAM/Zenoh dependencies. No chassis motion commands are autho
 
 After isolated validation, deploy source to the final latest workspace prefix and
 rebuild there; install scripts can contain absolute build-prefix paths. Repeat checks
-at that final location. Only then archive the old workspace outside /home/iecme/workspace,
-verify archive hashes and loaded library/underlay paths, and remove the legacy tree
-in Linux/local/Git together. This stage contains no deletion command.
+at that final location. Robot legacy retirement remains gated on the recorded runtime
+checks and a verified recovery archive outside /home/iecme/workspace.
+Local/Git cleanup was separately approved and does not imply robot acceptance.
+This stage contains no robot deletion command.
 
 ## Changes to public interfaces
 LocalizationUpdate adds optional twist and twist_cov; absence preserves zero output.

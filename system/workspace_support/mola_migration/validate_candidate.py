@@ -32,8 +32,14 @@ def main():
         assert ET.parse(ROOT / source / "package.xml").findtext("version") == version
         assert destination == "src/" + name
     legacy = ROOT / "localization/_legacy_mola_3_2_pending_validation"
-    assert (legacy / "COLCON_IGNORE").is_file()
-    assert len(list((legacy / "packages").glob("*/package.xml"))) == 24
+    assert not legacy.exists(), "The retired local MOLA tree must not remain"
+    expected_names = {row[0] for row in active}
+    all_mola = {}
+    for marker in ROOT.rglob("package.xml"):
+        name = ET.parse(marker).findtext("name")
+        if name in expected_names:
+            all_mola.setdefault(name, []).append(marker.parent.relative_to(ROOT).as_posix())
+    assert all_mola == {row[0]: [row[2]] for row in active}, all_mola
 
     parsed_python = 0
     for package in [ROOT / row[2] for row in active] + [
@@ -58,10 +64,11 @@ def main():
         assert not missing, (filename, missing[:10])
 
     print(json.dumps({"active_ros_packages": len(packages), "active_mola_packages": len(active),
-                      "duplicate_package_names": len(duplicates), "legacy_packages_preserved": 24,
+                      "duplicate_package_names": len(duplicates), "local_legacy_packages": 0,
+                      "one_copy_per_mola_package": True,
                       "launch_python_parsed": parsed_python, "yaml_parsed": len(files),
                       "cpp_build": "PENDING", "robot_acceptance": "PENDING",
-                      "legacy_deletion_allowed": False}, indent=2))
+                      "robot_legacy_deletion_allowed": False}, indent=2))
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ Source: `/home/iecme/workspace` on `iecme@192.168.3.113`
 Snapshot date: 2026-09-24  
 Original tar SHA-256: `05a00928acd12cdf1eb63e52f55b84f06f44f9e487f1b84a07ac77d112354c2e`
 
-The repository root follows the subsystem grouping used by [Autoware Universe](https://github.com/autowarefoundation/autoware_universe): `common`, `control`, `localization`, `perception`, `planning`, `sensing`, `simulator`, `system`, `vehicle`, and `visualization`. These categories organize the existing robot code; they do not make it an Autoware project. Active MOLA package directories are canonical under localization/<package>, based on the latest source snapshot. Eleven previously identical pairs remain shared; the 24 legacy differing packages are preserved in an ignored quarantine until robot acceptance. Upstream metadata is under localization/mola_source_metadata. See system/workspace_support/mola_migration/FEATURE_PARAMETER_MATRIX.md and its acceptance status. SOURCE_PATHS.tsv records current paths, including quarantined source. Non-`src` configuration and scripts are under `system/workspace_support`, except Foxglove files under `visualization`.
+The repository root follows the subsystem grouping used by [Autoware Universe](https://github.com/autowarefoundation/autoware_universe): `common`, `control`, `localization`, `perception`, `planning`, `sensing`, `simulator`, `system`, `vehicle`, and `visualization`. These categories organize the existing robot code; they do not make it an Autoware project. Active MOLA package directories are canonical under localization/<package>, based on the latest source snapshot. Eleven previously identical pairs remain shared; the 24 legacy differing packages have been retired from the local and Git source trees after explicit user approval and verified external archival. Upstream metadata is under localization/mola_source_metadata. See system/workspace_support/mola_migration/FEATURE_PARAMETER_MATRIX.md and its acceptance status. SOURCE_PATHS.tsv records the current retained source paths. Non-`src` configuration and scripts are under `system/workspace_support`, except Foxglove files under `visualization`.
 
 `SOURCE_PATHS.tsv` maps the original source-snapshot entries back to their source paths. `PATH_RELOCATION.tsv` records each path moved in this layout update. All six workspaces from the source root are represented. Restore on Linux by copying each mapped path to the original relative path beneath a new workspace directory. Git stores the original relative symlink targets.
 
@@ -28,6 +28,10 @@ The source archive is stored on the robot at `/home/iecme/robot_backups/workspac
 
 ## MOLA migration candidate (2026-10-05)
 
-Only local code and GitHub candidate changes are made. Legacy source deletion is gated
+Only local code and GitHub candidate changes are made. Local/Git legacy cleanup was explicitly approved on 2026-10-05. Robot retirement remains gated
 on Linux build, replay, stationary robot and final-prefix validation. Dated snapshot
 manifests remain immutable and resolve against backup-20260929-source-198.
+
+The local project and current Git tree contain one copy of each of the 37 MOLA
+packages. Recovery is recorded in system/workspace_support/mola_migration/RETIREMENT_RECORD.json.
+C++ build and ROS runtime validation are still pending; the robot was not changed.
