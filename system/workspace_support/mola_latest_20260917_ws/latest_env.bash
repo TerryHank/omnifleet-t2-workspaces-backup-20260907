@@ -3,6 +3,8 @@
 # Isolated build/runtime environment for the latest MOLA workspace.
 unset AMENT_PREFIX_PATH COLCON_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH
 unset MOLA_DIR mp2p_icp_DIR mola_DIR
+# Rebuild the loader search path instead of inheriting an old MOLA overlay.
+unset LD_LIBRARY_PATH PKG_CONFIG_PATH
 
 source /opt/ros/humble/setup.bash
 

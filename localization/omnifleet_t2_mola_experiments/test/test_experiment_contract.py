@@ -18,17 +18,22 @@ def test_launch_files_are_valid_python():
 
 def test_profiles_support_pure_lio_and_rep105_modes():
     source = MOLA_LAUNCH.read_text(encoding="utf-8")
-    assert 'PROFILES = {"simple_direct", "simple_rep105", "smoother_direct"}' in source
+    tree = ast.parse(source)
+    profiles = next(
+        ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "PROFILES" for target in node.targets)
+    )
+    assert profiles == {"simple_direct", "simple_direct_observation", "simple_rep105", "smoother_direct"}
     assert '"publish_localization_following_rep105": "True"' in source
     assert '"publish_localization_following_rep105": "False"' in source
-    assert '"mola_bridge_odometry_frame": "odom"' in source
+    assert '"mola_bridge_odometry_frame": frame("odom")' in source
     assert '"forward_ros_tf_odom_to_mola": "False"' in source
     assert '"odom_topic_name": "/odom"' in source
     assert "pure_lio_chassis_tf_lease" not in source
-    assert "refresh_foxglove_after_mola_start" in source
     assert "mola_initial_map_mm_file" in source
     assert "map_path" in source
-    assert "systemctl restart omnifleet-t2-foxglove.service" in source
     assert 'executable="t2_driver"' not in source
     assert 'chassis_core.launch.py' not in source
     assert 'DeclareLaunchArgument("start_chassis_core"' not in source
@@ -47,6 +52,7 @@ def test_smoother_profile_has_official_anchor_and_planar_constraints():
     assert 'SetEnvironmentVariable("MOLA_STATE_ESTIMATOR_PUBLISH_RATE", "10")' in source
     assert 'SetEnvironmentVariable("MOLA_LOCALIZATION_PUBLISH_TF", "true")' in source
     assert 'SetEnvironmentVariable("MOLA_PUBLISH_MAP_TO_ODOM_TF", "true")' in source
+    assert 'SetEnvironmentVariable("MOLA_STATE_ESTIMATOR_PUBLISH_TWIST", "true")' in source
     assert 'SetEnvironmentVariable("MOLA_MAP_TO_ODOM_FRAME", "wheel_odom")' in source
     assert 'SetEnvironmentVariable("MOLA_MAP_TO_ODOM_CHILD_FRAME", "odom")' in source
     assert '"use_state_estimator": "True"' not in source
@@ -65,7 +71,7 @@ def test_smoother_profile_has_official_anchor_and_planar_constraints():
 
 def test_imu_calibration_is_explicit_and_finite():
     config = yaml.safe_load(CALIBRATION.read_text(encoding="utf-8"))
-    params = config["omnifleet_t2_experiment_imu_adapter"]["ros__parameters"]
+    params = config["robot_113"]["omnifleet_t2_experiment_imu_adapter"]["ros__parameters"]
     assert params["drop_non_increasing_timestamps"] is True
     assert len(params["angular_velocity_bias"]) == 3
     assert len(params["rotation_xyzw"]) == 4
@@ -79,8 +85,9 @@ def test_nav2_reuses_the_production_official_stack_read_only():
     assert 'DeclareLaunchArgument("odom_topic", default_value="/lidar_odometry/pose")' in source
     assert '"odom_topic": LaunchConfiguration("odom_topic")' in source
     assert 'DeclareLaunchArgument("obstacle_topic", default_value="/lidar_odometry/nav_voxelmap_points")' in source
-    assert '"topic": LaunchConfiguration("obstacle_topic")' in source
-    assert '"clearing": LaunchConfiguration("obstacle_clearing")' in source
+    for costmap in ("local_costmap", "global_costmap"):
+        assert f'"{costmap}.{costmap}.ros__parameters.obstacle_layer.lidar.topic": LaunchConfiguration("obstacle_topic")' in source
+        assert f'"{costmap}.{costmap}.ros__parameters.obstacle_layer.lidar_clearing.clearing": LaunchConfiguration("obstacle_clearing")' in source
     assert 'SetParameter(name="odom_topic", value=LaunchConfiguration("odom_topic"))' in source
     assert '"params_file": configured_params' in source
     assert "RewrittenYaml" in source

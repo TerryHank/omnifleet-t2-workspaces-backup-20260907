@@ -1,8 +1,5 @@
 # ============================================================================
-# Experimental LIO-only configuration for StateEstimationSmoother.
-# Raw IMU remains enabled inside MOLA LIO for deskewing, but is intentionally
-# excluded from Smoother inertial integration until a full Allan/noise model is
-# available for the Airy IMU.
+# Configuration for mola::state_estimation_smoother::StateEstimationSmoother
 # ============================================================================
 # This file holds parameters for MOLA State Estimation Smoother that fuses
 # multiple sensor inputs (IMU, odometry, GNSS) for robust pose and velocity
@@ -31,10 +28,6 @@ params:
   enu_frame_name: "enu"
 
   publish_twist: ${MOLA_STATE_ESTIMATOR_PUBLISH_TWIST|false}
-
-  # Publish REP-105 map -> odom directly from the smoother's own fused
-  # T_map_to_odom estimate. The source label selects the wheel odometry graph
-  # variable; the child frame connects it to the chassis odom -> base_link TF.
   publish_map_to_odom_tf: ${MOLA_PUBLISH_MAP_TO_ODOM_TF|false}
   map_to_odom_frame_name: "${MOLA_MAP_TO_ODOM_FRAME|}"
   map_to_odom_child_frame: "${MOLA_MAP_TO_ODOM_CHILD_FRAME|}"
@@ -184,15 +177,9 @@ params:
   # Nonlinear Optimization
   # --------------------------------------------------------------------------
 
-  # Keep the real-time ROS callback path independent from the iSAM2 backend.
-  # The upstream smoother's predictor serves timely pose/twist estimates while
-  # the backend solves the sliding window in its own thread.
-  async_backend: true
-  fast_predictor_buffer_length: 1.0
-
   # Each new sensor will become a call to isam2.update(), plus this number of additional
   # refining steps. In theory, more steps lead to more accurate results.
-  additional_isam2_update_steps: 1
+  additional_isam2_update_steps: 3
 
   # --------------------------------------------------------------------------
   # Sensor Input Filtering (Regex Patterns)
@@ -200,7 +187,7 @@ params:
 
   # Regular expression to filter IMU sensor labels/topics for processing
   # Default accepts all: ".*"
-  do_process_imu_labels_re: "^$"
+  do_process_imu_labels_re: ".*"
 
   # Regular expression to filter odometry input labels/topics for processing
   # Default accepts all: ".*"

@@ -28,7 +28,7 @@ Source the experiment overlay after the production and official MOLA workspaces:
 ```bash
 source /opt/ros/humble/setup.bash
 source /home/iecme/workspace/hardware_drivers_ws/install/setup.bash
-source /home/iecme/workspace/mola_3_2_ws/install/setup.bash
+source /home/iecme/workspace/mola_latest_20260917_ws/install/setup.bash
 source /home/iecme/workspace/omnifleet_t2_ws/install/setup.bash
 source /home/iecme/workspace/omnifleet_t2_mola_experiments_ws/install/setup.bash
 export ROS_DOMAIN_ID=73

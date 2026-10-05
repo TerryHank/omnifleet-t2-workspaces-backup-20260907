@@ -158,6 +158,7 @@ def _launch(context):
             SetEnvironmentVariable("MOLA_INITIAL_TWIST_SIGMA_ANG", "0.05"),
             SetEnvironmentVariable("MOLA_STATE_ESTIMATOR_PUBLISH_RATE", "10"),
             SetEnvironmentVariable("MOLA_PUBLISH_MAP_TO_ODOM_TF", "true"),
+            SetEnvironmentVariable("MOLA_STATE_ESTIMATOR_PUBLISH_TWIST", "true"),
             SetEnvironmentVariable("MOLA_MAP_TO_ODOM_FRAME", "wheel_odom"),
             SetEnvironmentVariable("MOLA_MAP_TO_ODOM_CHILD_FRAME", "odom"),
         ])
@@ -247,10 +248,10 @@ def _launch(context):
             cmd=[
                 "bash", "-lc",
                 "source /home/iecme/omnifleet_fleet/env.bash; "
-                "source /home/iecme/workspace/mola_latest_20260917_ws/install/setup.bash; " +
+                "source /home/iecme/workspace/mola_latest_20260917_ws/install/local_setup.bash; " +
                 ("source /home/iecme/fleet_rmw_zenoh_trace_ws/install/local_setup.bash; "
                  if os.environ.get("RMW_ZENOH_TRACE_FILE") else "") +
-                "export LD_LIBRARY_PATH=\"/home/iecme/workspace/mola_latest_20260917_ws/install/mola_metric_maps/lib:$(printf '%s' \"$LD_LIBRARY_PATH\" | tr ':' '\n' | grep -v '/home/iecme/workspace/mola_3_2_ws/' | paste -sd: -)\"; "
+                "export LD_LIBRARY_PATH=\"/home/iecme/workspace/mola_latest_20260917_ws/install/mola_metric_maps/lib:$LD_LIBRARY_PATH\"; "
                 "exec ros2 launch " + shlex.quote(str(upstream_launch)) + " " +
                 " ".join(
                     f"{key}:={shlex.quote(str(value))}"
