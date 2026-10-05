@@ -25,7 +25,7 @@ def _mola_paths():
         share = Path(get_package_share_directory("mola_lidar_odometry"))
     except PackageNotFoundError as exc:
         raise RuntimeError(
-            "MOLA backend is not installed; source the official MOLA 3.2 workspace"
+            "MOLA backend is not installed; source the consolidated latest MOLA workspace"
         ) from exc
 
     upstream_launch = share / "ros2-launchs" / "ros2-lidar-odometry.launch.py"

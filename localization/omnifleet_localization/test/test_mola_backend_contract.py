@@ -18,7 +18,7 @@ def test_mola_backend_is_optional_and_pins_the_non_rknn_pipeline():
     assert '"lidar3d-icp-nav2.yaml"' in source
     assert "lidar3d-gicp.yaml" not in source
     assert 'operation not in {"mapping", "slam_navigation"}' in source
-    assert '"lidar_topic_name": "/rslidar_points"' in source
+    assert '"lidar_topic_name": "/robot_113/rslidar_points"' in source
     assert '"imu_topic_name": "/rslidar_imu_data_corrected"' in source
     assert '"use_imu_for_lio": "True"' in source
     assert '"enforce_planar_motion": "True"' not in source

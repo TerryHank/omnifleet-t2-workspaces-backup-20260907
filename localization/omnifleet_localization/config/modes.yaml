@@ -25,7 +25,7 @@ modes:
     launch_package: omnifleet_localization
     launch_file: mola_backend.launch.py
     operations: [mapping, slam_navigation]
-    required_topics: [/rslidar_points]
+    required_topics: [/robot_113/rslidar_points]
     required_outputs: [/odom]
     operation_required_outputs:
       mapping: [/map]
@@ -40,6 +40,6 @@ modes:
     software_versions:
       omnifleet_localization: "0.3.0"
       mola_lidar_odometry: "3.2.0"
-      mola_launcher: "3.2.0"
-      mola_kernel: "3.2.0"
-      mola_bridge_ros2: "3.2.0"
+      mola_launcher: "3.2.1"
+      mola_kernel: "3.2.1"
+      mola_bridge_ros2: "3.2.1"
