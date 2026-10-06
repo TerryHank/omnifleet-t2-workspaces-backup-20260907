@@ -32,9 +32,9 @@ def collect_evidence(robot,live_events=()):
     events=sorted(events,key=lambda e:e['time'])[-80:]
     for i,event in enumerate(events,1):event['id']='E'+str(i).zfill(3)
     checks=[]
-    sources=[('/home/iecme/workspace/omnifleet_t2_ws/src/omnifleet_local_navigation/omnifleet_local_navigation/route_execution.py',
+    sources=[('/home/iecme/workspace/control/omnifleet_local_navigation/omnifleet_local_navigation/route_execution.py',
               ['    def on_tf(', '    def tick(']),
-             ('/home/iecme/workspace/omnifleet_t2_ws/src/omnifleet_planner/src/continuous_route_control.hpp',
+             ('/home/iecme/workspace/planning/omnifleet_planner/src/continuous_route_control.hpp',
               ['      transform=tf_->lookupTransform'])]
     for filename,anchors in sources:
         try:

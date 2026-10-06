@@ -32,7 +32,7 @@ from snapshot_fallback import build_fallback
 from parameter_guidance import build_parameter_details
 from model_catalog import DEFAULT_MODEL, fetch_catalog, load_catalog, save_catalog
 
-ROOT = FilePath('/home/iecme/workspace/omnifleet_t2_ws/foxglove/nav2_permanent_panel')
+ROOT = FilePath('/home/iecme/workspace/visualization/omnifleet_t2_ws/foxglove/nav2_permanent_panel')
 import sys
 
 def timeout_completion(snapshot,error,timings):

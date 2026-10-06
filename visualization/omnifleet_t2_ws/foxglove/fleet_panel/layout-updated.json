@@ -308,7 +308,7 @@
           "label": "OmniFleet T2履带模型 0.50×0.37×0.33 m",
           "instanceId": "omnifleetT2RobotModel",
           "sourceType": "filePath",
-          "filePath": "/home/iecme/workspace/omnifleet_t2_ws/install/omnifleet_description/share/omnifleet_description/urdf/omnifleet_t2.urdf",
+          "filePath": "/home/iecme/workspace/.runtime/install/omnifleet_description/share/omnifleet_description/urdf/omnifleet_t2.urdf",
           "framePrefix": "robot_113/",
           "displayMode": "visual",
           "fallbackColor": "#9e9e9e",

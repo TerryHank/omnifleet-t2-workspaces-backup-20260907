@@ -1,7 +1,7 @@
 """Keep existing diagnostics and parameter safety checks aware of the new velocity route."""
 import ast,shutil
 from pathlib import Path
-root=Path('/home/iecme/omnifleet_t2_ws/foxglove')
+root=Path('/home/iecme/workspace/foxglove')
 backup=Path('/home/iecme/robot_backups/msc_v1_20260909/motion_observers');backup.mkdir(parents=True,exist_ok=True)
 patches={
  'nav2_permanent_panel/nav2_parameter_store.py':[

@@ -90,7 +90,7 @@ class LocalNavigation(LocalControl):
         self.message=text;self.get_logger().info(text);self.publish_catalog()
 
     def readiness_reason(self):
-        if self.estop:return '急停或接触保护尚未解除'
+        if self.estop or self.agent_status.get('estop'):return '急停或接触保护尚未解除'
         if self.policy.canceling or self.execution.phase in ('canceling','cancel_unconfirmed'):return '正在取消或确认停稳，尚不能启动后续任务'
         if not self.control_gate_ready:return '本地底盘控制通道尚未就绪'
         if not self.execution.single.server_is_ready() or not self.execution.navigator.server_is_ready():return '本地Nav2执行接口尚未就绪'
@@ -107,7 +107,16 @@ class LocalNavigation(LocalControl):
               'source':self.current_job.source if self.current_job else 'NONE',
               'navigation_active':self.navigation_active,'local_ready':not bool(reason),
               'readiness_reason':reason,'message':self.message,'local_override':self.policy.local_override,
-              'fleet_enabled':self.fleet_enabled,'control_mode':self.mode}
+              'fleet_enabled':self.fleet_enabled,'control_mode':self.mode,
+              'agent_boot':self.agent_status.get('agent_boot',''),
+              'agent_status_age':time.monotonic()-self.agent_status_time if self.agent_status_time else 99.,
+              'coordinator_age':self.agent_status.get('coordinator_age',99.),
+              'control_epoch':self.agent_status.get('control_epoch',''),
+              'applied_command_seq':self.agent_status.get('applied_command_seq',0),
+              'agent_command_kind':self.agent_status.get('command_kind',''),
+              'agent_command_task_id':self.agent_status.get('command_task_id',''),
+              'agent_fleet_hold':self.agent_status.get('fleet_hold',True),
+              'agent_estop':bool(self.agent_status.get('estop'))}
         self.status_pub.publish(String(data=json.dumps(data,ensure_ascii=False)))
         if self.current_job and self.current_job.action_type is ExecuteNavigation and self.current_job.handle.is_active:
             f=ExecuteNavigation.Feedback();f.task_id=self.current_job.ticket.task_id
@@ -170,9 +179,8 @@ class LocalNavigation(LocalControl):
                 self.mode='LOCAL';self.manual_blocked_goals.clear()
             if ticket.source=='FLEET':
                 if not self.fleet_enabled:raise RuntimeError('尚未显式允许协同任务；本地导航不受此开关限制')
-                if time.monotonic()-self.last_response>.6:raise RuntimeError('协同租约不新鲜')
-                command=self.response.get('command',{})
-                if command.get('kind')!='navigate' or command.get('epoch')!=ticket.command_epoch or int(command.get('seq',0))!=ticket.revision:
+                if not self.agent_lease_fresh():raise RuntimeError('MSC agent 协同租约已过期')
+                if not self.agent_command_current(ticket):
                     self.finish_job(job,False,'STALE_FLEET_COMMAND','协同指令已撤销或被较新指令替代')
                     return await job.done
                 existing=self.current_job
@@ -198,9 +206,10 @@ class LocalNavigation(LocalControl):
         self.current_job=job;self.pending_job=None;self.inhibited=False;self.goal_error=''
         self.armed=False;self.nav_time=0.
         self.mode=job.source;self.fleet_hold=False;self.pass_radius=job.radius
+        if job.source=='FLEET':
+            self.applied_seq=job.ticket.revision;self.command_epoch=job.ticket.command_epoch
         p=job.points[-1].pose;q=p.orientation
         self.goal=[p.position.x,p.position.y,math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))]
-        if job.source=='FLEET':self.applied_seq=job.ticket.revision;self.command_epoch=job.ticket.command_epoch
         self.preview_planner_id=self.selection.get('planner',self.preview_planner_id)
         self.execution.native_behavior_tree=job.tree
         self.execution.start(job.points,single_point=job.single)

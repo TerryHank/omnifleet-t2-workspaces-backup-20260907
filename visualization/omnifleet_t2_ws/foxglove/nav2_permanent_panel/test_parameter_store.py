@@ -3,7 +3,7 @@ import yaml
 import pytest
 from nav2_parameter_store import SPECS, edited_yaml, save_changes, saved_values
 
-SOURCE = Path('/home/iecme/workspace/omnifleet_t2_ws/src/omnifleet_planner/config/nav2_t2.yaml')
+SOURCE = Path('/home/iecme/workspace/planning/omnifleet_planner/config/nav2_t2.yaml')
 
 def test_linked_speed_is_atomic_and_keeps_yaml_comments(tmp_path):
     path = tmp_path / 'nav.yaml'

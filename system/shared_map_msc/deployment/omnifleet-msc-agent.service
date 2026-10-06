@@ -1,15 +1,15 @@
 [Unit]
-Description=OmniFleet MSC-V1 robot agent and exclusive velocity output
+Description=OmniFleet MSC-V1 high-level robot coordination agent
 Wants=network-online.target
-After=network-online.target
-Before=omnifleet-t2-chassis.service
+Wants=omnifleet-local-navigation.service
+After=network-online.target omnifleet-local-navigation.service
 
 [Service]
 Type=simple
 User=iecme
 Group=iecme
-WorkingDirectory=/home/iecme/msc_v1_ws
-ExecStart=/bin/bash /home/iecme/msc_v1_ws/deployment/run.sh msc_agent /etc/omnifleet_msc/agent.json
+WorkingDirectory=/home/iecme/workspace/system/shared_map_msc
+ExecStart=/bin/bash /home/iecme/workspace/system/shared_map_msc/deployment/run.sh msc_agent /etc/omnifleet_msc/agent.json
 Restart=on-failure
 RestartSec=1
 KillSignal=SIGINT

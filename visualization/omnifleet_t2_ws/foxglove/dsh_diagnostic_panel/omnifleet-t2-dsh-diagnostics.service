@@ -8,8 +8,8 @@ User=iecme
 Environment=HOME=/home/iecme
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/etc/omnifleet_t2/robot.env
-WorkingDirectory=/home/iecme/workspace/omnifleet_t2_ws/foxglove/dsh_diagnostic_panel
-ExecStart=/bin/bash -c 'source /opt/ros/humble/setup.bash && source /home/iecme/workspace/hardware_drivers_ws/install/setup.bash && source /home/iecme/workspace/mola_3_2_ws/install/setup.bash && source /home/iecme/workspace/omnifleet_t2_ws/install/setup.bash && exec python3 diagnostic_node.py'
+WorkingDirectory=/home/iecme/workspace/visualization/omnifleet_t2_ws/foxglove/dsh_diagnostic_panel
+ExecStart=/bin/bash -c 'source /home/iecme/omnifleet_fleet/env.bash && exec python3 diagnostic_node.py'
 Restart=on-failure
 RestartSec=5
 KillMode=control-group

@@ -6,10 +6,14 @@ from pathlib import Path
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE_SRC = PACKAGE_ROOT.parent
+WORKSPACE_ROOT = PACKAGE_ROOT.parents[1]
 TUTORIAL_LAUNCH = PACKAGE_ROOT / "launch"
 INNER_LAUNCH = (
-    WORKSPACE_SRC / "omnifleet_vision" / "launch" / "course_function.launch.py"
+    WORKSPACE_ROOT
+    / "perception"
+    / "omnifleet_vision"
+    / "launch"
+    / "course_function.launch.py"
 )
 
 COURSE_FUNCTIONS = {

@@ -1,7 +1,7 @@
 import json,shutil,yaml
 from pathlib import Path
 backup=Path('/home/iecme/robot_backups/msc_shared_map_dsh_20260909');backup.mkdir(parents=True,exist_ok=True)
-config=Path('/home/iecme/omnifleet_t2_ws/src/omnifleet_planner/config/nav2_t2.yaml')
+config=Path('/home/iecme/workspace/src/omnifleet_planner/config/nav2_t2.yaml')
 target=backup/'nav2-before-shared-map.yaml'
 if not target.exists():shutil.copy2(config,target)
 data=yaml.safe_load(config.read_text());global_map=data['global_costmap']['global_costmap']['ros__parameters']

@@ -1,9 +1,9 @@
 """Record deployment checks without exporting authentication secrets."""
 import hashlib,json,subprocess,time
 from pathlib import Path
-root=Path('/home/iecme/msc_v1_ws');agent=json.load(open('/etc/omnifleet_msc/agent.json'))
+root=Path('/home/iecme/workspace/system/omnifleet_msc');agent=json.load(open('/etc/omnifleet_msc/agent.json'))
 assert agent['enable_control'] is True and agent.get('allow_fleet_motion',False) is False
-services=['omnifleet-msc-agent','omnifleet-t2-chassis']
+services=['omnifleet-msc-agent','omnifleet-local-navigation','omnifleet-t2-chassis']
 if agent['robot_id']=='robot_104':services+=['omnifleet-msc-map']
 if agent['robot_id']=='robot_113':
  coordinator=json.load(open('/etc/omnifleet_msc/coordinator.json'))
@@ -23,7 +23,7 @@ for process in Path('/proc').glob('[0-9]*'):
   if any(Path(a.decode(errors='replace')).name in names for a in args):temporary.append(process.name)
  except OSError:pass
 assert not temporary,temporary
-source_hashes={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (root/'src/omnifleet_msc/omnifleet_msc').glob('*.py')}
+source_hashes={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (root/'omnifleet_msc').glob('*.py')}
 result={'time':time.time(),'robot':agent['robot_id'],'motion_locked':True,'services':units,'remaining_test_processes':temporary,'source_sha256':source_hashes}
 Path('/home/iecme/robot_backups/msc_shared_map_dsh_20260909/installation.json').write_text(json.dumps(result,indent=2))
 print(json.dumps({k:v for k,v in result.items() if k!='source_sha256'}))

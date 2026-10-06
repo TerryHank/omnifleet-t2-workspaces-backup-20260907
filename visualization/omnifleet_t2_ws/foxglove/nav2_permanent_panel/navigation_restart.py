@@ -213,7 +213,7 @@ def worker(request_file):
             raise RuntimeError('当前导航重启入口只允许使用 systemd 管理的统一 MOLA/Nav2 服务')
         system_service('stop', nav2_unit)
         system_service('stop', managed_unit)
-        cleanup = Path('/home/iecme/workspace/omnifleet_t2_mola_experiments_ws/src/omnifleet_t2_mola_experiments/scripts/cleanup_unified_application_nodes.py')
+        cleanup = Path('/home/iecme/workspace/localization/omnifleet_mola/omnifleet_t2_mola_experiments/scripts/cleanup_unified_application_nodes.py')
         subprocess.run([sys.executable, str(cleanup)], timeout=12, check=True)
         update('starting', '正在通过 systemd 启动 MOLA 与 Nav2')
         system_service('start', managed_unit, timeout=50)

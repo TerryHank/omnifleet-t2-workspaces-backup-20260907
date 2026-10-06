@@ -7,16 +7,15 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.time import Time
 from rclpy.qos import QoSProfile,DurabilityPolicy
-from geometry_msgs.msg import Twist,PoseStamped
 from nav_msgs.msg import Odometry,OccupancyGrid,Path as NavPath
-from nav2_msgs.action import NavigateToPose
 from lifecycle_msgs.srv import GetState
 from rcl_interfaces.srv import GetParameters,ListParameters
-from action_msgs.srv import CancelGoal
-from action_msgs.msg import GoalStatusArray
 from std_msgs.msg import Empty,Bool,String
+from std_srvs.srv import Trigger
 from tf2_ros import Buffer,TransformListener
-from .geometry import pose,compose,inverse,safe_velocity
+from omnifleet_navigation_interfaces.action import ExecuteNavigation
+from omnifleet_navigation_interfaces.msg import NavigationPoint
+from .geometry import pose,compose,inverse
 from .protocol import request
 from .storage import read,save
 
@@ -28,22 +27,25 @@ class Agent(Node):
         if not math.isfinite(config.get('safety_clearance',.2)) or config.get('safety_clearance',.2)<.2:raise ValueError('invalid safety clearance')
         self.lock=threading.RLock();self.closed=False;self.network_error='not connected';self.last_response=0.
         self.response={};self.incoming=[];self.sequence=0;self.applied_seq=0;self.command_epoch=''
-        self.mode='STARTUP';self.startup_canceled=False;self.startup_done=False;self.startup_stopped=None
-        self.fleet_hold=True;self.estop=False;self.manual_time=0.;self.nav_time=0.
-        self.manual=[0.,0.];self.nav=[0.,0.];self.velocity=[0.,0.];self.velocity_time=0.
+        self.command_kind='observe';self.command_task_id='';self.navigation_result=None;self.navigation_feedback=None
+        self.mode='STARTUP';self.startup_done=False
+        self.fleet_hold=True;self.estop=False;self.velocity=[0.,0.];self.velocity_time=0.
         self.state_path=Path(config.get('state_file',str(Path.home()/'.local/share/omnifleet_msc'/('agent-'+config['robot_id']+'.json'))))
         self.zero_since=None;self.estop_input=False;self.safety_latched=read(self.state_path,{}).get('safety_latched',False)
         self.estop=self.safety_latched
-        self.local_pose=None;self.pose_age=99.;self.pose_stamp_ns=0;self.states={};self.pending_states=set();self.nav_status={}
+        self.local_pose=None;self.pose_age=99.;self.pose_stamp_ns=0;self.states={};self.pending_states=set()
         self.odom_pose=None;self.odom_stamp_ns=0;self.odom_time=0.
-        self.active_goal_ids={};self.manual_blocked_goals=set()
-        self.goal_handle=None;self.goal=None;self.pending_goal=False;self.goal_error='';self.completed_seq=0
-        self.pending_goal_requests={}
+        self.goal_handle=None;self.goal_token=None;self.cancel_requested=set();self.goal=None;self.goal_task_id='';self.pending_goal=False;self.goal_error='';self.completed_seq=0
+        self.pending_goal_requests={};self.pending_dispatch=None
         self.cancel_pending=0;self.control_gate_ready=False;self.grid=None;self.grid_time=0.
+        self.release_stop_pending=False;self.last_release_attempt=0.
         self.safety_reason='';self.epoch='';self.process_epoch='';self.map_generation=0;self.pose_time=0.
         self.trace=[];self.planned_path=[];self.own_snapshot={}
         self.pose_window=deque(maxlen=20)
         self.shared_map_status={};self.shared_map_time=0.
+        self.local_navigation_status={};self.local_navigation_time=0.
+        self.navigation_catalog={};self.navigation_catalog_time=0.
+        self.navigation_result=None
         self.shared_grid=None
         self.runtime_parameters={};self.parameter_time=0.;self.parameter_pending=set();self.selection={}
         self.pending_state_calls={};self.pending_parameter_calls={}
@@ -51,18 +53,18 @@ class Agent(Node):
         self.contact=None;self.contact_time=0.
         self.machine_boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
         self.tf=Buffer();self.listener=TransformListener(self.tf,self)
-        self.client=ActionClient(self,NavigateToPose,'/navigate_to_pose')
-        self.output=self.create_publisher(Twist,'/msc/cmd_vel_safe',10)
+        robot_ns='/'+config['robot_id']
+        self.client=ActionClient(self,ExecuteNavigation,robot_ns+'/navigation/execute')
         self.peer_map_pub=self.create_publisher(OccupancyGrid,'/msc/peer_map',QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.create_timer(.5,self.publish_peers)
         self.wp_stop=self.create_publisher(Empty,'/omnifleet_t2/waypoints/stop',10)
         self.heartbeat_pub=self.create_publisher(String,'/msc/local_status',10)
-        self.create_subscription(Twist,'/cmd_vel',self.on_manual,1)
-        self.create_subscription(Twist,'/msc/nav_cmd_vel',self.on_nav,1)
         self.create_subscription(Odometry,'/odom',self.on_odom,20)
         self.create_subscription(Bool,'/msc/estop',self.on_estop,10)
         self.create_subscription(Bool,'/msc/contact',self.on_contact,10)
         self.create_subscription(String,'/msc/shared_map_status',self.on_shared_map,10)
+        self.create_subscription(String,robot_ns+'/navigation/local_status',self.on_local_navigation_status,10)
+        self.create_subscription(String,robot_ns+'/navigation/status',self.on_navigation_catalog,10)
         self.create_subscription(OccupancyGrid,'/fleet/map',lambda m:setattr(self,'shared_grid',m),
             QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL))
         for name in ('planner','controller'):
@@ -86,21 +88,34 @@ class Agent(Node):
         self.create_subscription(OccupancyGrid,'/local_costmap/costmap',self.on_obstacle_grid,
             QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.create_subscription(NavPath,'/plan',self.on_plan,10)
-        actions=('navigate_to_pose','navigate_through_poses','follow_path','spin','backup','drive_on_heading','wait')
-        for action in actions:
-            self.create_subscription(GoalStatusArray,'/'+action+'/_action/status',
-                lambda m,a=action:self.on_nav_status(a,m),
-                QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.state_clients={name:self.create_client(GetState,'/'+name+'/get_state') for name in ('controller_server','planner_server','bt_navigator')}
-        self.cancel_clients=[self.create_client(CancelGoal,'/'+a+'/_action/cancel_goal') for a in actions]
+        self.reset_estop_client=self.create_client(Trigger,robot_ns+'/navigation/reset_estop')
         self.create_timer(.02,self.control_tick);self.create_timer(.2,self.snapshot);self.create_timer(1.,self.discovery)
         self.network=threading.Thread(target=self.network_loop,daemon=True);self.network.start()
 
-    def on_nav(self,msg):self.nav=[msg.linear.x,msg.angular.z];self.nav_time=time.monotonic()
+    def on_local_navigation_status(self,msg):
+        try:
+            state=json.loads(msg.data)
+            if state.get('robot_id')!=self.config['robot_id']:return
+            self.local_navigation_status=state;self.local_navigation_time=time.monotonic()
+            if state.get('estop'):
+                self.estop=True;self.fleet_hold=True
+                if self.mode=='FLEET':self.cancel_all()
+            elif not self.estop_input and not self.safety_latched:
+                self.estop=False
+        except (ValueError,TypeError):return
+
+    def on_navigation_catalog(self,msg):
+        try:
+            state=json.loads(msg.data)
+            if state.get('robot_id')!=self.config['robot_id']:return
+            self.navigation_catalog=state;self.navigation_catalog_time=time.monotonic()
+        except (ValueError,TypeError):return
     def on_contact(self,msg):
         self.contact=bool(msg.data);self.contact_time=time.monotonic()
         if self.contact:
-            self.safety_latched=True;save(self.state_path,{'safety_latched':True});self.estop=True;self.fleet_hold=True;self.cancel_all()
+            self.safety_latched=True;save(self.state_path,{'safety_latched':True});self.estop=True
+            self.mode='ESTOP';self.fleet_hold=True;self.cancel_all()
     def publish_peers(self):
         source=self.shared_grid
         if source is None or source.header.frame_id!='fleet_map':return
@@ -179,51 +194,92 @@ class Agent(Node):
             self.planned_path=points
         except Exception:self.planned_path=[]
 
-    def on_manual(self,msg):
-        if not self.control_gate_ready:return
-        self.manual=[msg.linear.x,msg.angular.z];self.manual_time=time.monotonic()
-        if self.mode!='MANUAL':
-            self.manual_blocked_goals=set().union(*self.active_goal_ids.values()) if self.active_goal_ids else set()
-            self.mode='MANUAL';self.fleet_hold=True;self.cancel_all()
-
-    def on_nav_status(self,action,msg):
-        active={bytes(s.goal_info.goal_id.uuid).hex() for s in msg.status_list if s.status in (1,2,3)}
-        self.active_goal_ids[action]=active;self.nav_status[action]=bool(active)
-        if self.mode=='MANUAL' and time.monotonic()-self.manual_time>.35 and self.cancel_pending==0:
-            if active-self.manual_blocked_goals and time.monotonic()-self.velocity_time<.5 and abs(self.velocity[0])<.02 and abs(self.velocity[1])<.05:
-                self.mode='LOCAL';self.nav_time=0.;self.startup_done=True
-
     def on_estop(self,msg):
         self.estop_input=bool(msg.data)
         if self.estop_input:self.safety_latched=True;save(self.state_path,{'safety_latched':True})
         self.estop=self.estop_input or self.safety_latched
         if self.estop:
-            self.manual_blocked_goals=set().union(*self.active_goal_ids.values()) if self.active_goal_ids else set()
-            self.mode='MANUAL';self.manual=[0.,0.];self.manual_time=time.monotonic()
-            self.fleet_hold=True;self.cancel_all()
+            self.mode='ESTOP';self.fleet_hold=True;self.cancel_all()
 
     def cancel_all(self):
-        self.fleet_hold=True;self.pending_goal=False;self.goal=None;self.wp_stop.publish(Empty())
-        for c in self.cancel_clients:
-            if c.service_is_ready():
-                self.cancel_pending+=1;f=c.call_async(CancelGoal.Request())
-                def done(f):
-                    self.cancel_pending=max(0,self.cancel_pending-1)
-                    try:
-                        if f.result().return_code not in (0,3):self.goal_error='navigation cancellation rejected'
-                    except Exception:self.goal_error='navigation cancellation failed'
-                f.add_done_callback(done)
-        if self.goal_handle:self.cancel_handle(self.goal_handle);self.goal_handle=None
+        self.fleet_hold=True;self.pending_goal=False;self.pending_dispatch=None;self.goal=None;self.wp_stop.publish(Empty())
+        if self.goal_handle and self.goal_token not in self.cancel_requested:
+            self.cancel_requested.add(self.goal_token);self.cancel_handle(self.goal_handle)
 
     def cancel_handle(self,handle):
         self.cancel_pending+=1
-        future=handle.cancel_goal_async()
+        try:future=handle.cancel_goal_async()
+        except Exception:
+            self.cancel_pending=max(0,self.cancel_pending-1);self.goal_error='goal cancellation request failed';return
         def done(f):
             self.cancel_pending=max(0,self.cancel_pending-1)
             try:
                 if f.result().return_code not in (0,3):self.goal_error='goal cancellation rejected'
+                elif self.goal_handle is handle:self.goal_handle=None;self.goal_token=None
             except Exception:self.goal_error='goal cancellation response unavailable'
         future.add_done_callback(done)
+
+    def send_navigation_goal(self,command,seq,epoch):
+        task_id=str(command.get('task_id') or f"{self.config['robot_id']}-{epoch[:40] or 'fleet'}")
+        self.command_task_id=task_id
+        target=pose(command['target'])
+        goal=ExecuteNavigation.Goal();goal.task_id=task_id;goal.command_epoch=epoch
+        goal.revision=seq;goal.source=ExecuteNavigation.Goal.FLEET;goal.single_point=True
+        goal.pass_radius=float(command.get('pass_radius',.25))
+        point=NavigationPoint();point.name=task_id
+        point.pose.header.frame_id=frame('map');point.pose.header.stamp=self.get_clock().now().to_msg()
+        point.pose.pose.position.x=target[0];point.pose.pose.position.y=target[1]
+        point.pose.pose.orientation.z=math.sin(target[2]/2);point.pose.pose.orientation.w=math.cos(target[2]/2)
+        point.kind=NavigationPoint.STOP;point.dwell_seconds=0.
+        goal.waypoints=[point]
+        token=(epoch,seq,task_id);self.pending_goal_requests[token]=time.monotonic()
+        self.goal=target;self.goal_task_id=task_id;self.pending_goal=True;self.navigation_feedback=None
+        future=self.client.send_goal_async(goal,feedback_callback=lambda message:self.on_navigation_feedback(message,token))
+        def accepted(f):
+            self.pending_goal_requests.pop(token,None)
+            try:handle=f.result()
+            except Exception:
+                if token==(self.command_epoch,self.applied_seq,self.command_task_id):
+                    self.pending_goal=False;self.goal_error='ExecuteNavigation request failed';self.fleet_hold=True
+                return
+            if token!=(self.command_epoch,self.applied_seq,self.command_task_id) or self.fleet_hold:
+                if handle.accepted:self.cancel_handle(handle)
+                return
+            self.pending_goal=False
+            if not handle.accepted:
+                self.goal_error='local navigation rejected the fleet command';self.fleet_hold=True;return
+            self.goal_handle=handle;self.goal_token=token
+            result_future=handle.get_result_async()
+            result_future.add_done_callback(lambda result:self.navigation_result_done(result,token))
+        future.add_done_callback(accepted)
+
+    def on_navigation_feedback(self,message,token):
+        if token!=(self.command_epoch,self.applied_seq,self.command_task_id):return
+        feedback=message.feedback
+        self.navigation_feedback={'task_id':token[2],'command_epoch':token[0],'revision':token[1],
+            'phase':feedback.phase,'message':feedback.message,'passed_points':feedback.passed_points,
+            'tf_age_ms':feedback.tf_age_ms}
+
+    def navigation_result_done(self,future,token):
+        current=token==(self.command_epoch,self.applied_seq,self.command_task_id)
+        if self.goal_token==token:
+            self.goal_handle=None;self.goal_token=None;self.pending_goal=False;self.cancel_requested.discard(token)
+        try:result=future.result().result
+        except Exception:
+            if current:self.goal_error='local navigation result unavailable';self.fleet_hold=True
+            return
+        if current:self.goal=None
+        if result.success and current:
+            self.completed_seq=token[1];self.goal_error='';self.navigation_result=None
+            return
+        if result.code in ('CANCELED','PREEMPTED_BY_LOCAL'):
+            self.navigation_result={'task_id':token[2],'command_epoch':token[0],
+                                    'revision':token[1],'code':result.code,
+                                    'stopped_verified':False}
+            return
+        if current:
+            self.goal_error=result.message or result.code or 'local navigation failed'
+            self.fleet_hold=True
 
     def discovery(self):
         now=time.monotonic()
@@ -261,6 +317,15 @@ class Agent(Node):
             self.fleet_hold=True;self.goal_error='localization restarted';self.cancel_all()
         if epoch!=self.process_epoch:self.map_generation=0
         self.process_epoch=epoch;self.epoch=epoch+':'+str(self.map_generation) if epoch else ''
+        local_status_age=now-self.local_navigation_time
+        catalog_age=now-self.navigation_catalog_time
+        self.startup_done=(local_status_age<.6 and catalog_age<.6 and
+                           bool(self.navigation_catalog.get('local_ready')) and
+                           bool(self.local_navigation_status.get('control_gate_ready')))
+        if local_status_age>=.6:
+            self.navigation_status={}
+            if self.mode=='FLEET' and not self.fleet_hold:
+                self.fleet_hold=True;self.goal_error='local navigation heartbeat expired';self.cancel_all()
 
     def goal_safe(self,target):
         m=self.grid
@@ -290,111 +355,125 @@ class Agent(Node):
     def apply(self,command):
         seq=int(command.get('seq',0));kind=command['kind'];epoch=command.get('epoch','')
         if seq<=self.applied_seq and epoch==self.command_epoch:return
-        self.applied_seq=seq;self.command_epoch=epoch
+        self.applied_seq=seq;self.command_epoch=epoch;self.command_kind=kind
+        self.command_task_id=str(command.get('task_id',''))
         if kind=='observe':
-            if self.mode=='FLEET':self.fleet_hold=True;self.cancel_all()
+            if self.mode=='FLEET':self.cancel_all()
+            if not self.estop:self.mode='LOCAL'
+            self.fleet_hold=True;self.goal_error=''
+            if self.navigation_result and self.navigation_result.get('stopped_verified'):self.navigation_result=None
             return
-        if not self.control_gate_ready:
-            self.goal_error='exclusive control gate not ready';return
         if kind=='safety_stop':
-            self.safety_latched=True;save(self.state_path,{'safety_latched':True});self.estop=True;self.fleet_hold=True;self.cancel_all();return
+            self.safety_latched=True;save(self.state_path,{'safety_latched':True});self.estop=True
+            self.mode='ESTOP';self.fleet_hold=True;self.cancel_all();return
         if kind=='release_stop':
-            now=time.monotonic()
-            if not self.estop_input and not self.contact and self.zero_since is not None and now-self.zero_since>=.5 and now-self.velocity_time<.5 and not any(self.nav_status.values()) and not self.cancel_pending and not self.pending_goal_requests and now-self.manual_time>.35:
-                self.safety_latched=False;save(self.state_path,{'safety_latched':False});self.estop=self.estop_input;self.nav_time=0.
-                if not self.estop:self.mode='LOCAL';self.fleet_hold=True
-            return
+            self.release_stop_pending=True;self.try_release_stop();return
         if kind=='release':
-            if self.mode=='FLEET':self.fleet_hold=True;self.cancel_all();self.mode='LOCAL';self.goal_error=''
-            return
+            if self.mode=='FLEET':self.cancel_all()
+            self.mode='LOCAL';self.fleet_hold=True;self.goal_error='';return
         if kind=='release_manual':
-            if not any(self.nav_status.values()) and self.cancel_pending==0 and time.monotonic()-self.velocity_time<.5 and max(abs(v) for v in self.velocity)<.02:
-                self.mode='LOCAL';self.nav_time=0.;self.manual_blocked_goals.clear();self.startup_done=True
+            status=self.local_navigation_status
+            if (not status.get('manual_active') and status.get('stopped_seconds',0.)>=.5 and
+                not status.get('nav_active') and not status.get('pending_goal')):
+                self.mode='LOCAL';self.fleet_hold=True;self.startup_done=True
             return
         if kind=='hold':
-            if self.mode=='FLEET':self.fleet_hold=True;self.cancel_all()
+            self.fleet_hold=True
+            if self.mode=='FLEET':self.cancel_all()
             return
         if kind=='claim':
-            if self.mode=='MANUAL' or self.estop:self.goal_error='manual/estop active';return
-            self.mode='FLEET';self.fleet_hold=True;self.goal_error='';self.cancel_all();return
+            if self.estop or self.local_navigation_status.get('manual_active'):
+                self.goal_error='manual/estop active';return
+            self.mode='FLEET';self.fleet_hold=True;self.goal_error=''
+            if self.goal_handle or self.pending_goal_requests:self.cancel_all()
+            return
         if kind!='navigate':self.goal_error='unsupported agent command';return
-        if not self.config.get('allow_fleet_motion',False):self.goal_error='fleet motion locked for static acceptance';self.fleet_hold=True;return
-        if self.estop or self.mode=='MANUAL' or self.cancel_pending or self.pending_goal_requests:
-            self.goal_error='manual/estop/cancellation active';return
+        status=self.local_navigation_status;catalog=self.navigation_catalog
+        fresh=(time.monotonic()-self.local_navigation_time<.6 and
+               time.monotonic()-self.navigation_catalog_time<.6)
+        if not self.config.get('allow_fleet_motion',False):
+            self.goal_error='fleet motion locked for static acceptance';self.fleet_hold=True;return
+        if (not fresh or not self.control_gate_ready or not self.startup_done or
+            not status.get('control_gate_ready') or not catalog.get('local_ready')):
+            self.goal_error='local navigation is not ready';self.fleet_hold=True;return
+        if (self.estop or status.get('estop') or status.get('contact') or
+            catalog.get('manual_active') or catalog.get('local_override') or
+            not catalog.get('fleet_enabled')):
+            self.goal_error='manual, estop, or explicit fleet permission gate is active';self.fleet_hold=True;return
+        if self.cancel_pending:
+            self.goal_error='previous navigation cancellation is not confirmed';self.fleet_hold=True;return
+        if self.goal_handle and self.goal_task_id!=self.command_task_id:
+            self.goal_error='previous fleet task is still active';self.fleet_hold=True;self.cancel_all();return
         target=pose(command['target'])
         if not self.goal_safe(target):
             self.goal_error='unsafe target footprint or stale map';self.fleet_hold=True;self.cancel_all();return
-        if not self.client.server_is_ready():self.goal_error='Nav2 unavailable';self.fleet_hold=True;return
-        self.mode='FLEET';self.fleet_hold=False;self.goal_error='';self.goal=target;self.pending_goal=True
-        goal=NavigateToPose.Goal();goal.pose.header.frame_id=frame('map');goal.pose.header.stamp=self.get_clock().now().to_msg()
-        goal.pose.pose.position.x=target[0];goal.pose.pose.position.y=target[1]
-        goal.pose.pose.orientation.z=math.sin(target[2]/2);goal.pose.pose.orientation.w=math.cos(target[2]/2)
-        future=self.client.send_goal_async(goal)
-        request_token=(epoch,seq);self.pending_goal_requests[request_token]=time.monotonic()
-        def accepted(f):
-            self.pending_goal_requests.pop(request_token,None)
-            try:
-                handle=f.result()
-                if seq!=self.applied_seq or epoch!=self.command_epoch or self.fleet_hold:
-                    if handle.accepted:self.cancel_handle(handle)
-                    return
-                self.pending_goal=False
-                if not handle.accepted:self.goal_error='Nav2 rejected goal';self.fleet_hold=True;return
-                self.goal_handle=handle;result=handle.get_result_async()
-                def finished(f):
-                    if seq!=self.applied_seq or epoch!=self.command_epoch:return
-                    self.goal_handle=None;self.goal=None
-                    try:
-                        if f.result().status==4:self.completed_seq=seq
-                        else:self.goal_error='Nav2 action ended with status '+str(f.result().status);self.fleet_hold=True
-                    except Exception:self.goal_error='Nav2 result unavailable';self.fleet_hold=True
-                result.add_done_callback(finished)
-            except Exception:self.pending_goal=False;self.goal_error='Nav2 goal request failed';self.fleet_hold=True
-        future.add_done_callback(accepted)
+        if not self.client.server_is_ready():self.goal_error='local ExecuteNavigation action unavailable';self.fleet_hold=True;return
+        self.mode='FLEET';self.fleet_hold=False;self.goal_error='';self.goal=target
+        task_id=str(command.get('task_id') or f"{self.config['robot_id']}-{epoch[:40] or 'fleet'}")
+        self.goal_task_id=task_id;self.pending_goal=True
+        self.pending_dispatch={'command':copy.deepcopy(command),'seq':seq,'epoch':epoch,
+                               'task_id':task_id,'started':time.monotonic()}
+
+    def try_release_stop(self):
+        if not self.release_stop_pending:return
+        if time.monotonic()-self.last_release_attempt<.5:return
+        if self.estop_input or self.contact or self.cancel_pending or self.pending_goal_requests:return
+        status=self.local_navigation_status
+        if (time.monotonic()-self.local_navigation_time>=.6 or status.get('estop_input') or
+            status.get('contact') is True or
+            status.get('velocity')!=[0.,0.] or status.get('stopped_seconds',0.)<.5 or
+            status.get('nav_active') or status.get('pending_goal')):return
+        if not self.reset_estop_client.service_is_ready():return
+        self.last_release_attempt=time.monotonic();self.release_stop_pending=False
+        future=self.reset_estop_client.call_async(Trigger.Request())
+        def done(f):
+            try:result=f.result()
+            except Exception:
+                self.goal_error='local estop reset response unavailable';self.release_stop_pending=True;return
+            if not result.success:
+                self.goal_error=result.message or 'local estop reset rejected';self.release_stop_pending=True;return
+            self.safety_latched=False;self.estop=False;self.mode='LOCAL';self.fleet_hold=True
+            save(self.state_path,{'safety_latched':False})
+        future.add_done_callback(done)
 
     def control_tick(self):
         now=time.monotonic()
-        with self.lock:
-            commands=self.incoming;self.incoming=[];reply=copy.deepcopy(self.response);received=self.last_response
+        with self.lock:commands=self.incoming;self.incoming=[]
         for command in commands:self.apply(command)
-        command=[0.,0.];self.safety_reason=''
-        if self.control_gate_ready:
-            if self.mode=='STARTUP':
-                if not self.startup_canceled:self.cancel_all();self.startup_canceled=True
-                stopped=not any(self.nav_status.values()) and not self.cancel_pending and not self.pending_goal_requests and now-self.velocity_time<.5 and max(abs(v) for v in self.velocity)<.02
-                if stopped:
-                    if self.startup_stopped is None:self.startup_stopped=now
-                    if now-self.startup_stopped>=.5:self.mode='LOCAL';self.nav_time=0.;self.startup_done=True
-                else:self.startup_stopped=None
-            elif self.mode=='MANUAL':
-                if now-self.manual_time<.35:command=self.manual
-            elif self.mode=='LOCAL':
-                if self.config.get('require_local_shared_map',False) and (now-self.shared_map_time>3 or not self.shared_map_status.get('alignment_valid')):
-                    self.safety_reason='shared map unavailable for local navigation'
-                elif now-self.nav_time<.35:command=self.nav
-            elif self.mode=='FLEET':
-                if now-received>.6:
-                    if not self.fleet_hold:
-                        self.fleet_hold=True;self.goal_error='coordinator lease expired; resume required';self.cancel_all()
-                    self.safety_reason='coordinator lease expired'
-                elif self.config.get('require_shared_map') and (now-self.shared_map_time>3 or not self.shared_map_status.get('alignment_valid')):
-                    self.safety_reason='shared map unavailable'
-                elif self.config.get('require_obstacles') and (not self.obstacle_complete or now-self.obstacle_stamp>2.5):
-                    self.safety_reason='obstacle observations unavailable'
-                elif not self.fleet_hold and now-self.nav_time<.35:command=self.nav
-        if not all(math.isfinite(v) for v in command):command=[0.,0.];self.safety_reason='nonfinite command'
-        # Local single-point and waypoint navigation is always an onboard path.
-        # Coordinator state becomes a safety overlay only after an explicit fleet claim.
-        fleet_safety=self.mode=='FLEET'
-        if fleet_safety:command=[max(-.4,min(.4,command[0])),max(-1.2,min(1.2,command[1]))]
-        if fleet_safety and any(command):
-            alignment=reply.get('alignment');fleet_pose=compose(alignment['transform'],self.local_pose) if alignment and alignment.get('epoch')==self.epoch and self.local_pose and self.pose_age<.8 else None
-            peers=reply.get('peers',[])
-            for peer in peers:peer['age']+=max(0.,now-received)
-            command,self.safety_reason=safe_velocity({'pose':fleet_pose,'radius':self.config['radius'],'age':self.pose_age},command,peers,
-                clearance=max(self.config.get('safety_clearance',.2),reply.get('safety_clearance',.2)))
-        if self.estop:command=[0.,0.];self.safety_reason='estop'
-        m=Twist();m.linear.x=command[0];m.angular.z=command[1];self.output.publish(m)
+        self.try_release_stop()
+        if self.pending_dispatch:
+            pending=self.pending_dispatch;catalog=self.navigation_catalog
+            echoed=(now-self.navigation_catalog_time<.6 and
+                catalog.get('agent_boot')==self.boot and
+                catalog.get('control_epoch')==pending['epoch'] and
+                catalog.get('applied_command_seq')==pending['seq'] and
+                catalog.get('agent_command_task_id')==pending['task_id'] and
+                catalog.get('agent_command_kind')=='navigate' and
+                catalog.get('agent_fleet_hold') is False and
+                catalog.get('agent_estop') is False and
+                catalog.get('agent_status_age',99.)<.6 and
+                catalog.get('coordinator_age',99.)<=.6 and
+                catalog.get('local_ready') is True and
+                catalog.get('fleet_enabled') is True and
+                not catalog.get('local_override') and not catalog.get('manual_active'))
+            if echoed:
+                self.pending_dispatch=None
+                self.send_navigation_goal(pending['command'],pending['seq'],pending['epoch'])
+            elif now-pending['started']>.6:
+                self.pending_dispatch=None;self.pending_goal=False;self.goal=None;self.fleet_hold=True
+                self.goal_error='local navigation did not acknowledge the current FLEET command'
+        if self.mode=='FLEET' and not self.fleet_hold:
+            local_age=now-self.local_navigation_time;catalog_age=now-self.navigation_catalog_time
+            if (now-self.last_response>.6 or local_age>.6 or catalog_age>.6 or
+                not self.control_gate_ready or not self.startup_done or self.estop or self.contact or
+                self.local_navigation_status.get('estop') or self.navigation_catalog.get('manual_active') or
+                self.navigation_catalog.get('local_override')):
+                self.goal_error='coordinator/local navigation lease or safety gate expired';self.cancel_all()
+        if self.navigation_result and not self.navigation_result.get('stopped_verified'):
+            local_age=now-self.local_navigation_time;status=self.local_navigation_status
+            if (local_age<.6 and status.get('velocity')==[0.,0.] and status.get('stopped_seconds',0.)>=.5 and
+                not status.get('nav_active') and not status.get('pending_goal')):
+                self.navigation_result['stopped_verified']=True
 
     def snapshot(self):
         now=time.monotonic()
@@ -424,27 +503,59 @@ class Agent(Node):
         while self.pose_window and now-self.pose_window[0][0]>1.5:self.pose_window.popleft()
         pose_stationary=bool(self.local_pose is not None and self.pose_age<.8 and self.pose_window and now-self.pose_window[0][0]>=1. and
             all(math.dist(p[:2],self.local_pose[:2])<.015 and abs(math.atan2(math.sin(p[2]-self.local_pose[2]),math.cos(p[2]-self.local_pose[2])))<.05 for _,p in self.pose_window))
-        ready=all(self.states.get(name,(0,0))[0]==3 and now-self.states[name][1]<3 for name in self.state_clients) and self.client.server_is_ready()
+        local_age=now-self.local_navigation_time;catalog_age=now-self.navigation_catalog_time
+        local_nav_ready=(local_age<.6 and catalog_age<.6 and
+                         bool(self.local_navigation_status.get('nav_ready')) and
+                         bool(self.navigation_catalog.get('local_ready')))
+        ready=(all(self.states.get(name,(0,0))[0]==3 and now-self.states[name][1]<3 for name in self.state_clients) and
+               self.client.server_is_ready() and local_nav_ready)
+        coordinator_age=now-self.last_response if self.last_response else 99.
+        alignment=copy.deepcopy(self.response.get('alignment'))
+        fleet_pose=None
+        if (alignment and alignment.get('epoch')==self.epoch and self.local_pose is not None and
+            self.pose_age<.8):
+            fleet_pose=compose(alignment['transform'],self.local_pose)
+        peers=[]
+        for peer in self.response.get('peers',[]):
+            peers.append({'robot_id':peer.get('robot_id'),'pose':peer.get('pose'),
+                          'velocity':peer.get('velocity',[0.,0.]),'radius':peer.get('radius',0.),
+                          'age':peer.get('age',99.)+max(0.,coordinator_age)})
+        catalog=self.navigation_catalog;local_status=self.local_navigation_status
+        nav_active=bool(local_status.get('nav_active') or catalog.get('navigation_active'))
+        pending_goal=bool(self.pending_goal or self.pending_goal_requests or self.cancel_pending or
+                          local_status.get('pending_goal'))
         state={'local_pose':self.local_pose,'pose_age':self.pose_age,'velocity':self.velocity,'velocity_age':now-self.velocity_time,
             'pose_stamp_ns':self.pose_stamp_ns,
             'pose_stationary':pose_stationary,
-            'contact':self.contact if now-self.contact_time<1. else None,
+            'contact':self.contact if now-self.contact_time<1. else local_status.get('contact'),
             'shared_map':copy.deepcopy(self.shared_map_status),
             'shared_map_ready':bool(now-self.shared_map_time<3 and self.shared_map_status.get('alignment_valid') and self.shared_map_status.get('sha256')),
+            'alignment':alignment,'fleet_pose':fleet_pose,'peers':peers,
+            'safety_clearance':self.response.get('safety_clearance',self.config.get('safety_clearance',.2)),
             'selected_algorithms':copy.deepcopy(self.selection),
             'obstacles':self.obstacles,'obstacle_age':now-self.obstacle_stamp if self.obstacle_stamp else 99.,
             'obstacle_observations_complete':self.obstacle_complete,
             'runtime_parameters':{k:{'values':v['values'],'age':now-v['received_at']} for k,v in self.runtime_parameters.items()},
-            'stopped_seconds':now-self.zero_since if self.zero_since is not None and now-self.velocity_time<.5 else 0.,
-            'localization_epoch':self.epoch,'nav_ready':ready,'control_gate_ready':self.control_gate_ready and self.startup_done,
+            'stopped_seconds':local_status.get('stopped_seconds',0.),
+            'localization_epoch':self.epoch,'nav_ready':ready,
+            'control_gate_ready':self.control_gate_ready and self.startup_done,
+            'local_ready':bool(catalog.get('local_ready')),'local_override':bool(catalog.get('local_override')),
+            'fleet_enabled':bool(catalog.get('fleet_enabled')),
             'control_mode':self.mode,'local_navigation_independent':True,
-            'fleet_overlay_active':self.mode=='FLEET','manual_active':self.mode=='MANUAL','estop':self.estop,
+            'fleet_overlay_active':self.mode=='FLEET','fleet_hold':self.fleet_hold,
+            'manual_active':bool(catalog.get('manual_active') or local_status.get('manual_active')),
+            'estop':self.estop or bool(local_status.get('estop')),
             'control_epoch':self.command_epoch,'applied_command_seq':self.applied_seq,
-            'coordinator_age':now-self.last_response if self.last_response else 99.,'network_error':self.network_error,
-            'nav_active':any(self.nav_status.values()),'pending_goal':self.pending_goal or bool(self.pending_goal_requests) or self.cancel_pending>0,
-            'goal':self.goal,'goal_error':self.goal_error,'completed_seq':self.completed_seq,
+            'command_kind':self.command_kind,'command_task_id':self.command_task_id,
+            'allow_fleet_motion':bool(self.config.get('allow_fleet_motion',False)),
+            'agent_boot':self.boot,'agent_sequence':self.sequence,
+            'coordinator_age':coordinator_age,'network_error':self.network_error,
+            'local_navigation_age':local_age,'nav_active':nav_active,'pending_goal':pending_goal,
+            'goal':self.goal,'goal_task_id':self.goal_task_id,'goal_error':self.goal_error,
+            'completed_seq':self.completed_seq,'navigation_result':copy.deepcopy(self.navigation_result),
+            'navigation_feedback':copy.deepcopy(self.navigation_feedback),
             'planned_path':self.planned_path,'safety_stop_reason':self.safety_reason,
-            'health':'READY' if ready and self.pose_age<.8 else 'WAITING_LOCALIZATION_OR_NAV2'}
+            'health':'ESTOP' if self.estop else 'READY' if ready and self.pose_age<.8 and self.control_gate_ready else 'WAITING_LOCALIZATION_OR_NAV2'}
         with self.lock:state['leader_id']=self.response.get('leader_id');state['mission_state']=self.response.get('mission_state','IDLE')
         with self.lock:self.own_snapshot=state
         msg=String();msg.data=json.dumps({'robot_id':self.config['robot_id'],**state});self.heartbeat_pub.publish(msg)
@@ -470,8 +581,6 @@ def main():
     except (KeyboardInterrupt,rclpy.executors.ExternalShutdownException):pass
     finally:
         node.closed=True
-        if rclpy.ok():
-            if node.mode=='FLEET':node.cancel_all()
-            for _ in range(3):node.output.publish(Twist())
+        if rclpy.ok() and node.mode=='FLEET':node.cancel_all()
         node.network.join(timeout=2);node.destroy_node()
         rclpy.try_shutdown()

@@ -16,7 +16,7 @@ Foxglove 中的“DSH 诊断助手”：一个问题输入框、一个回答框�
 
 `DshDiagnosticPanel.js → /omnifleet_t2/diagnostics/question → diagnostic_node.py → DSH headless → /omnifleet_t2/diagnostics/answer → 回答框`
 
-安装目录：`/home/iecme/workspace/omnifleet_t2_ws/foxglove/dsh_diagnostic_panel/`。
+安装目录：`/home/iecme/workspace/visualization/omnifleet_t2_ws/foxglove/dsh_diagnostic_panel/`。
 
 - `dsh_runner.py`：调用 DSH、限时、过滤参数定位 ID；凭据留在原 DSH HOME。
 - `make_dsh_overlay.py`：生成该入口独用的诊断策略，未改全局 DSH 配置。
@@ -48,14 +48,8 @@ sudo systemctl stop omnifleet-t2-dsh-diagnostics.service
 仅在要手动前台调试时，先停上述诊断服务避免重复实例，再运行：
 
 ```bash
-cd /home/iecme/workspace/omnifleet_t2_ws/foxglove/dsh_diagnostic_panel
-source /opt/ros/humble/setup.bash
-source /home/iecme/workspace/hardware_drivers_ws/install/setup.bash
-source /home/iecme/workspace/mola_3_2_ws/install/setup.bash
-source /home/iecme/workspace/omnifleet_t2_ws/install/setup.bash
-set -a
-source /etc/omnifleet_t2/robot.env
-set +a
+cd /home/iecme/workspace/visualization/omnifleet_t2_ws/foxglove/dsh_diagnostic_panel
+source /home/iecme/omnifleet_fleet/env.bash
 python3 diagnostic_node.py
 ```
 

@@ -1,0 +1,1 @@
+Legacy msc_mm_export uses MOLA 3.2.0 / MP2P 2.13 APIs and RUNPATHs. Keep this source for recovery; the unified workspace uses the validated MOLA native-map and Nav2 map-saver export paths.

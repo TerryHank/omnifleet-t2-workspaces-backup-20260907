@@ -1,6 +1,6 @@
 const fs=require('fs'),path=require('path'),acorn=require('/home/iecme/apps/foxglove-opensource-cn/node_modules/acorn');
 const root='/home/iecme/robot_backups/fleet_panel_20260913',bundle='/opt/Foxglove-Studio-CN/resources/app-web/4936.33f3ad98e1e1f7b86b00.js';
-const ext='/home/iecme/workspace/omnifleet_t2_ws/foxglove/foxglove_extension/omnifleet-t2-semantic-waypoints/src';
+const ext='/home/iecme/workspace/visualization/omnifleet_t2_ws/foxglove/foxglove_extension/omnifleet-t2-semantic-waypoints/src';
 let s=fs.readFileSync(bundle,'utf8');const source=fs.readFileSync(root+'/FleetPanel.js','utf8');
 const type='omnifleet-t2-semantic-waypoints.fleet-panel',oldType='omnifleet-t2-semantic-waypoints.nav2-hot-params-panel';
 const begin='/* OMNIFLEET_FLEET_PANEL_BEGIN */',end='/* OMNIFLEET_FLEET_PANEL_END */';

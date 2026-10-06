@@ -1,5 +1,6 @@
 from .scope import frame, topic
-import argparse,copy,json,math,threading,time,uuid,os
+from .fleet_lease import command_is_current,status_is_fresh
+import argparse,copy,json,math,time,os
 from collections import deque
 from pathlib import Path
 import rclpy
@@ -23,10 +24,9 @@ def yaw(q):return math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))
 
 class LocalControl(Node):
     def __init__(self,config):
-        super().__init__('local_navigation_'+config['robot_id'],namespace='/'+config['robot_id']);self.config=config;self.boot=uuid.uuid4().hex
+        super().__init__('local_navigation_'+config['robot_id'],namespace='/'+config['robot_id']);self.config=config
         if not math.isfinite(config.get('safety_clearance',.2)) or config.get('safety_clearance',.2)<.2:raise ValueError('invalid safety clearance')
-        self.lock=threading.RLock();self.closed=False;self.network_error='not connected';self.last_response=0.
-        self.response={};self.incoming=[];self.sequence=0;self.applied_seq=0;self.command_epoch=''
+        self.applied_seq=0;self.command_epoch=''
         self.mode='STARTUP';self.startup_canceled=False;self.startup_done=False;self.startup_stopped=None;self.startup_cancel_calls={}
         self.fleet_hold=True;self.estop=False;self.manual_time=0.;self.nav_time=0.
         self.manual=[0.,0.];self.nav=[0.,0.];self.velocity=[0.,0.];self.velocity_time=0.
@@ -43,7 +43,8 @@ class LocalControl(Node):
         self.trace=[];self.planned_path=[];self.own_snapshot={}
         self.pose_window=deque(maxlen=20)
         self.shared_map_status={};self.shared_map_time=0.
-        self.shared_grid=None
+        self.agent_status={};self.agent_status_time=0.;self.agent_boot=''
+        self.agent_peers=[];self.agent_alignment=None;self.agent_safety_clearance=config.get('safety_clearance',.2)
         self.runtime_parameters={};self.parameter_time=0.;self.parameter_pending=set();self.selection={}
         self.pending_state_calls={};self.pending_parameter_calls={}
         self.obstacles=[];self.obstacle_stamp=0.;self.obstacle_complete=False
@@ -51,8 +52,6 @@ class LocalControl(Node):
         self.machine_boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
         self.tf=Buffer();self.listener=TransformListener(self.tf,self)
         self.output=self.create_publisher(Twist,'/msc/cmd_vel_safe',10)
-        self.peer_map_pub=self.create_publisher(OccupancyGrid,'/msc/peer_map',QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL))
-        self.create_timer(.5,self.publish_peers)
         self.heartbeat_pub=self.create_publisher(String,'/navigation/local_status',10)
         self.create_subscription(Twist,'/cmd_vel',self.on_manual,1)
         self.create_subscription(Twist,'/msc/nav_cmd_vel',self.on_nav,1)
@@ -60,8 +59,7 @@ class LocalControl(Node):
         self.create_subscription(Bool,'/msc/estop',self.on_estop,10)
         self.create_subscription(Bool,'/msc/contact',self.on_contact,10)
         self.create_subscription(String,'/msc/shared_map_status',self.on_shared_map,10)
-        self.create_subscription(OccupancyGrid,'/fleet/map',lambda m:setattr(self,'shared_grid',m),
-            QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        self.create_subscription(String,'/msc/local_status',self.on_msc_status,10)
         for name in ('planner','controller'):
             self.create_subscription(String,'/'+name+'_selector',lambda m,n=name:self.selection.update({n:m.data}),
                 QoSProfile(depth=1,durability=DurabilityPolicy.TRANSIENT_LOCAL))
@@ -91,27 +89,49 @@ class LocalControl(Node):
         self.state_clients={name:self.create_client(GetState,'/'+name+'/get_state') for name in ('controller_server','planner_server','bt_navigator')}
         self.cancel_clients=[self.create_client(CancelGoal,self.backend_name(a)+'/_action/cancel_goal') for a in actions]
         self.create_timer(.02,self.control_tick);self.create_timer(.2,self.snapshot);self.create_timer(1.,self.discovery)
-        self.create_subscription(String,'/navigation/fleet_overlay',self.on_fleet_overlay,1)
 
     def on_nav(self,msg):self.nav=[msg.linear.x,msg.angular.z];self.nav_time=time.monotonic()
     def on_contact(self,msg):
         self.contact=bool(msg.data);self.contact_time=time.monotonic()
         if self.contact:
             self.safety_latched=True;save(self.state_path,{'safety_latched':True});self.estop=True;self.fleet_hold=True;self.cancel_all()
-    def publish_peers(self):
-        source=self.shared_grid
-        if source is None or source.header.frame_id!='fleet_map':return
-        with self.lock:reply=copy.deepcopy(self.response);received=self.last_response
-        m=OccupancyGrid();m.header.frame_id='fleet_map';m.header.stamp=self.get_clock().now().to_msg();m.info=copy.deepcopy(source.info)
-        m.data=[-1]*(m.info.width*m.info.height);origin=[m.info.origin.position.x,m.info.origin.position.y,yaw(m.info.origin.orientation)]
-        for peer in reply.get('peers',[]):
-            if peer.get('pose') is None or peer.get('age',99)+time.monotonic()-received>.8:continue
-            p=compose(inverse(origin),peer['pose']);r=peer['radius'];res=m.info.resolution
-            cx,cy=math.floor(p[0]/res),math.floor(p[1]/res);span=math.ceil(r/res+.71)
-            for y in range(max(0,cy-span),min(m.info.height,cy+span+1)):
-                for x in range(max(0,cx-span),min(m.info.width,cx+span+1)):
-                    if math.hypot((x+.5)*res-p[0],(y+.5)*res-p[1])<=r+res*.71:m.data[y*m.info.width+x]=100
-        self.peer_map_pub.publish(m)
+    def on_msc_status(self,message):
+        try:status=json.loads(message.data)
+        except (ValueError,TypeError):return
+        if status.get('robot_id')!=self.config['robot_id']:return
+        now=time.monotonic();boot=str(status.get('agent_boot',''))
+        try:seq=int(status.get('applied_command_seq',0));heartbeat_seq=int(status.get('agent_sequence',0))
+        except (TypeError,ValueError):return
+        if (boot and boot==self.agent_boot and
+            str(status.get('control_epoch',''))==self.command_epoch and seq<self.applied_seq):return
+        if (boot and boot==self.agent_boot and heartbeat_seq<
+            int(self.agent_status.get('agent_sequence',-1))):return
+        changed=bool(self.agent_boot and boot and boot!=self.agent_boot)
+        if changed:
+            self.fleet_enabled=False
+            if self.mode=='FLEET':
+                self.fleet_hold=True;self.inhibited=True
+                self.goal_error='MSC agent restarted; explicit fleet resume required'
+                if self.execution.active:self.execution.stop(self.goal_error)
+        if boot:self.agent_boot=boot
+        self.agent_status=status;self.agent_status_time=now
+        self.agent_peers=status.get('peers',[]) if isinstance(status.get('peers',[]),list) else []
+        self.agent_alignment=status.get('alignment')
+        try:self.agent_safety_clearance=max(.2,float(status.get('safety_clearance',self.config.get('safety_clearance',.2))))
+        except (TypeError,ValueError):self.agent_safety_clearance=self.config.get('safety_clearance',.2)
+        self.applied_seq=seq
+        self.command_epoch=str(status.get('control_epoch',self.command_epoch))
+        if status.get('estop'):
+            self.safety_latched=True;save(self.state_path,{'safety_latched':True});self.estop=True
+            self.fleet_hold=True;self.inhibited=True
+            if self.current_job:self.stop_owned('MSC safety stop')
+
+    def agent_lease_fresh(self):
+        return status_is_fresh(self.agent_status,time.monotonic()-self.agent_status_time)
+
+    def agent_command_current(self,ticket,allow_newer=False):
+        return (self.agent_lease_fresh() and
+                command_is_current(self.agent_status,ticket.task_id,ticket.command_epoch,ticket.revision,allow_newer))
     def on_shared_map(self,msg):
         try:self.shared_map_status=json.loads(msg.data);self.shared_map_time=time.monotonic()
         except ValueError:pass
@@ -274,15 +294,6 @@ class LocalControl(Node):
 
     def control_tick(self):
         now=time.monotonic()
-        with self.lock:
-            commands=self.incoming;self.incoming=[];reply=copy.deepcopy(self.response);received=self.last_response
-        for command in commands:self.apply(command)
-        if self.deferred_navigation:
-            pending,started=self.deferred_navigation
-            if now-started>5:
-                self.deferred_navigation=None;self.goal_error='navigation type switch cancellation not confirmed';self.fleet_hold=True
-            elif not self.cancel_pending and not self.pending_goal_requests and not self.outstanding_results and not any(self.nav_status.values()):
-                self.deferred_navigation=None;self.apply(pending,retry=True)
         command=[0.,0.];self.safety_reason=''
         if self.control_gate_ready:
             if self.mode=='STARTUP':
@@ -297,26 +308,40 @@ class LocalControl(Node):
             elif self.mode=='LOCAL':
                 if self.output_permitted() and now-self.nav_time<.35:command=self.nav
             elif self.mode=='FLEET':
-                if now-received>.6:
+                job=getattr(self,'current_job',None)
+                lease_ok=(job is not None and job.source=='FLEET' and
+                          self.fleet_enabled and not self.policy.local_override and
+                          self.agent_lease_fresh() and self.agent_command_current(job.ticket,allow_newer=True))
+                if not lease_ok:
                     if not self.fleet_hold:
-                        self.fleet_hold=True;self.fleet_enabled=False;self.goal_error='coordinator lease expired; resume required';self.cancel_all()
-                    self.safety_reason='coordinator lease expired'
+                        self.fleet_hold=True;self.inhibited=True
+                        self.goal_error='MSC agent lease or fleet command expired'
+                        if self.execution.active:self.execution.stop(self.goal_error)
+                    self.safety_reason='MSC agent lease or fleet command expired'
                 elif self.config.get('require_shared_map') and (now-self.shared_map_time>3 or not self.shared_map_status.get('alignment_valid')):
                     self.safety_reason='shared map unavailable'
                 elif self.config.get('require_obstacles') and (not self.obstacle_complete or now-self.obstacle_stamp>2.5):
                     self.safety_reason='obstacle observations unavailable'
-                elif not self.fleet_hold and self.output_permitted() and now-self.nav_time<.35:command=self.nav
+                elif not self.fleet_hold and self.output_permitted() and now-self.nav_time<.35:
+                    command=[max(-.4,min(.4,self.nav[0])),max(-1.2,min(1.2,self.nav[1]))]
+                    status_age=now-self.agent_status_time
+                    fleet_pose=self.agent_status.get('fleet_pose')
+                    peers=[]
+                    try:
+                        for peer in self.agent_peers:
+                            item=copy.deepcopy(peer);item['age']=float(item.get('age',99.))+max(0.,status_age);peers.append(item)
+                        clearance=max(self.config.get('safety_clearance',.2),
+                                      float(self.agent_status.get('safety_clearance',.2)))
+                        own_age=float(self.agent_status.get('pose_age',99.))+max(0.,status_age)
+                        command,self.safety_reason=safe_velocity(
+                            {'pose':fleet_pose,'radius':self.config['radius'],'age':own_age},
+                            command,peers,clearance=clearance)
+                    except (KeyError,TypeError,ValueError,OverflowError):
+                        command=[0.,0.];self.safety_reason='invalid MSC peer state'
+        if self.agent_status.get('estop'):
+            command=[0.,0.];self.safety_reason='MSC safety stop'
+            self.inhibited=True;self.armed=False
         if not all(math.isfinite(v) for v in command):command=[0.,0.];self.safety_reason='nonfinite command'
-        # Local single-point and waypoint navigation is always an onboard path.
-        # Coordinator state becomes a safety overlay only after an explicit fleet claim.
-        fleet_safety=self.mode=='FLEET'
-        if fleet_safety:command=[max(-.4,min(.4,command[0])),max(-1.2,min(1.2,command[1]))]
-        if fleet_safety and any(command):
-            alignment=reply.get('alignment');fleet_pose=compose(alignment['transform'],self.local_pose) if alignment and alignment.get('epoch')==self.epoch and self.local_pose and self.pose_age<.8 else None
-            peers=reply.get('peers',[])
-            for peer in peers:peer['age']+=max(0.,now-received)
-            command,self.safety_reason=safe_velocity({'pose':fleet_pose,'radius':self.config['radius'],'age':self.pose_age},command,peers,
-                clearance=max(self.config.get('safety_clearance',.2),reply.get('safety_clearance',.2)))
         if self.estop:command=[0.,0.];self.safety_reason='estop'
         m=Twist();m.linear.x=command[0];m.angular.z=command[1];self.output.publish(m)
 
@@ -355,15 +380,18 @@ class LocalControl(Node):
             'stopped_seconds':now-self.zero_since if self.zero_since is not None and now-self.velocity_time<.5 else 0.,
             'localization_epoch':self.epoch,'nav_ready':ready,'control_gate_ready':self.control_gate_ready and self.startup_done,
             'control_mode':self.mode,'local_navigation_independent':True,'local_override':self.policy.local_override,'fleet_enabled':self.fleet_enabled,'fleet_permission_epoch':self.fleet_permission_epoch,
-            'fleet_overlay_active':self.mode=='FLEET','manual_active':self.mode=='MANUAL','estop':self.estop,
+            'fleet_overlay_active':self.mode=='FLEET','manual_active':self.mode=='MANUAL',
+            'estop':self.estop or bool(self.agent_status.get('estop')),'estop_input':self.estop_input,
             'control_epoch':self.command_epoch,'applied_command_seq':self.applied_seq,
-            'coordinator_age':now-self.last_response if self.last_response else 99.,'network_error':self.network_error,
+            'agent_boot':self.agent_boot,'agent_status_age':now-self.agent_status_time if self.agent_status_time else 99.,
+            'coordinator_age':self.agent_status.get('coordinator_age',99.),
+            'network_error':self.agent_status.get('network_error',''),
             'nav_active':self.navigation_active or any(self.nav_status.values()),'pending_goal':self.pending_goal or bool(self.pending_goal_requests) or self.cancel_pending>0 or self.deferred_navigation is not None,
             'goal':self.goal,'goal_error':self.goal_error,'completed_seq':self.completed_seq,
             'planned_path':self.planned_path,'safety_stop_reason':self.safety_reason,
             'health':'READY' if ready and self.pose_age<.8 else 'WAITING_LOCALIZATION_OR_NAV2'}
-        with self.lock:state['leader_id']=self.response.get('leader_id');state['mission_state']=self.response.get('mission_state','IDLE')
-        with self.lock:self.own_snapshot=state
+        state['leader_id']=self.agent_status.get('leader_id');state['mission_state']=self.agent_status.get('mission_state','IDLE')
+        self.own_snapshot=state
         msg=String();msg.data=json.dumps({'robot_id':self.config['robot_id'],**state});self.heartbeat_pub.publish(msg)
 
 
@@ -383,46 +411,6 @@ class LocalControl(Node):
 
     def resolve_topic_name(self,name,*args,**kwargs):
         return super().resolve_topic_name(topic(name),*args,**kwargs)
-
-    def on_fleet_overlay(self,message):
-        try:
-            packet=json.loads(message.data)
-            if packet.get('robot_id')!=self.config['robot_id']:return
-            if packet.get('error'):
-                self.network_error=packet['error'];return
-            if abs(time.time()-float(packet['received_at']))>.6:return
-            stamp=(packet['boot'],int(packet['sequence']))
-            previous=getattr(self,'last_packet',None)
-            if previous and previous[0]==stamp[0] and stamp[1]<=previous[1]:return
-            coordinator_boot=packet['response'].get('coordinator_boot','legacy')
-            changed=(hasattr(self,'last_packet') and self.last_packet[0]!=packet['boot']) or (hasattr(self,'coordinator_boot') and self.coordinator_boot!=coordinator_boot)
-            self.coordinator_boot=coordinator_boot
-            if changed:
-                self.fleet_enabled=False
-                if self.mode=='FLEET':self.goal_error='fleet process restarted; explicit resume required';self.cancel_all()
-            self.last_packet=stamp;self.last_response=time.monotonic()
-            self.response=packet['response'];self.network_error=''
-            command=self.response.get('command',{})
-            if command.get('kind')!='navigate':self.incoming=[command]
-        except (ValueError,KeyError,TypeError):return
-
-    def apply(self,command,retry=False):
-        kind=command.get('kind');seq=int(command.get('seq',0));epoch=command.get('epoch','')
-        if seq<=self.applied_seq and epoch==self.command_epoch:return
-        self.applied_seq=seq;self.command_epoch=epoch
-        if kind=='safety_stop':
-            if command.get('scope')=='fleet_only' and self.policy.local_override:return
-            self.safety_latched=True;save(self.state_path,{'safety_latched':True});self.estop=True
-            self.cancel_all();return
-        if self.policy.local_override or (self.current_job and self.current_job.source=='LOCAL'):return
-        if kind in ('observe','hold','release'):
-            if self.mode=='FLEET':self.fleet_hold=True;self.cancel_all()
-            return
-        if kind=='claim':
-            if not self.estop and self.mode!='MANUAL':self.mode='FLEET';self.fleet_hold=True
-            return
-        if kind=='release_stop' and not self.estop_input and not self.contact and self.stationary():
-            self.safety_latched=False;self.estop=False;save(self.state_path,{'safety_latched':False})
 
     def cancel_all(self):
         self.fleet_hold=True;self.nav=[0.,0.];self.nav_time=0.

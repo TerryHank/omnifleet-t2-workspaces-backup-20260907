@@ -1,62 +1,67 @@
-# Robot MOLA migration acceptance
+# Robot MOLA grouping and runtime acceptance
 
-Date: 2026-10-06
-Host: `iecme@10.0.0.198`
-Status: **PASS**
+Date: 2026-10-06  
+Host: `iecme@10.0.0.198` (`iecme-tank`)  
+Status: **BUILD AND FUNCTIONAL RUNTIME PASS; 20 FULL-SUITE LINT/COPYRIGHT FAILURES REMAIN**
 
-## Build and regression
+## Source grouping
 
-- Built all 37 canonical MOLA packages in the final workspace.
-- Passed all 20 package test gates.
-- Passed bridge odometry, smoother direct-TF, static GNSS integration, and moving
-  georeferencing integration regressions.
-- Replayed the same recorded LiDAR fragment with the baseline and candidate. Both
-  produced 23 finite poses and byte-identical trajectories; the saved native map
-  reloaded successfully.
-- The live 500x500, 0.1 m occupancy map exported to PGM and YAML through
-  `nav2_map_server/map_saver_cli`.
+- The 39 MOLA-related ROS packages now live under
+  `/home/iecme/workspace/localization/omnifleet_mola/<package>`. The group root
+  has no `package.xml`, so each ROS package remains independently discoverable.
+- The local MOLA source metadata directory is grouped under
+  `localization/omnifleet_mola/mola_source_metadata`; its 302 files were copied
+  to the robot and SHA-256 checked. It contains no `package.xml`.
+- A pre-move manifest covered all 39 robot package roots, 1,983 files, and
+  186,080,568 bytes. The post-move tree matched file hashes, modes, and symlink
+  targets. The manifest is outside the workspace at
+  `/home/iecme/robot_backups/workspace_layout_reorg_20261006/mola-grouping-rollback-20261006/mola-group-source-before.json`
+  (SHA-256 `bcd96fac18e5081369a8a281655fa980f7acac27f87996be036a7bc3bd892d26`).
+- `colcon --log-base /dev/null list --base-paths .` reports **68 package names,
+  68 unique**. All 68 install roots exist under `.runtime/install`.
+- 160 source links in `.runtime/install` point into the new group; the final
+  audit found no broken links or stale direct `localization/mola_*` targets.
+- Two `omnifleet_localization` tests were adjusted to compute the workspace root
+  across the new directory level. The MOLA production hash manifest path was
+  updated. Runtime algorithms and parameter values were not changed.
 
-## Runtime and parameter checks
+## Build and tests
 
-- Preserved all 85 captured MOLA, IMU, LiDAR, ROS-domain, and robot-ID runtime
-  configuration values. The only new runtime variable is the explicit
-  `MOLA_MODULES_LIB_PATH` selecting the unified install.
-- Kept the `controller_server` and `planner_server` parameter files byte-identical
-  to their pre-migration snapshots.
-- `ros2 pkg prefix mola_lidar_odometry` resolves to
-  `/home/iecme/workspace/mola_latest_20260917_ws/install/mola_lidar_odometry`.
-- The active `mola-cli` process mapped 37 MOLA/MP2P libraries, all from
-  `mola_latest_20260917_ws/install_unified`; none came from the old workspace or
-  a backup build tree.
-- After refreshing ROS services through the updated fleet environment, no live
-  process environment or memory map contained the old workspace path.
-- The MOLA systemd service and all nine ROS services that had inherited the old
-  environment restarted successfully through their existing launch entries.
-- A 30-second sensor sample after old-workspace deletion received 301 point clouds
-  and 301 poses. Every pose was finite, the maximum age was 126.7 ms, and no pose
-  exceeded the existing 500 ms freshness gate. The map publisher count was one;
-  the map-to-base transform had one MOLA owner.
+- The full clean build finished all 68 packages successfully.
+- MOLA module discovery passed with `mola-cli --list-modules` (exit code 0).
+- Full colcon tests: **676 tests, 0 errors, 20 failures, 0 skipped**. All 20
+  failures are existing lint/copyright checks in `ros_robot_controller`,
+  `ros_robot_controller_msgs`, and `rslidar_msg`. The two path-dependent
+  `omnifleet_localization` tests pass after the directory-depth adjustment.
+- Prefix checks passed for `mola_lidar_odometry`, `omnifleet_localization`,
+  `omnifleet_t2_mola_experiments`, `omnifleet_interfaces`, and
+  `omnifleet_navigation_interfaces` under `/home/iecme/workspace/.runtime/install`.
+- During recovery from the interrupted build, three zero-byte CMake export files
+  were reinstalled, and seven zero-byte object/library/header artifacts for
+  `mola_state_estimation_simple` were preserved outside the workspace and
+  regenerated. The old pre-group build/install trees remain in the rollback
+  directory.
+
+## Runtime check
+
+- All 16 Omnifleet services are active after the rebuild; the temporary runtime
+  masks have been removed.
+- Live ROS discovery showed MOLA, Nav2 controller/planner/lifecycle nodes, the
+  robot driver, and the MOLA map-grid node.
+- An eight-second read-only probe received 81 finite odometry samples with zero
+  endpoint displacement, no `/robot_113/msc/nav_cmd_vel` samples, and a live
+  500×500 occupancy map at 0.1 m resolution.
 - No chassis motion command was issued.
 
-## Retired workspace recovery
+## Recovery and limits
 
-The complete `/home/iecme/workspace/mola_3_2_ws` tree was archived before removal.
-The archive was checked against a manifest covering 6,295 entries: 4,935 regular
-files were SHA-256 verified, 139 symlink targets matched, and 1,221 directories
-were present. The compressed archive is 103,250,495 bytes; its SHA-256 is
-`cd1777c5d27e535b81b4ceef03a0e4ba567aad9190f729f76be2d1c53c64b65f`.
+The previous build/install trees, interrupted build logs, and rollback script are
+outside the active workspace at
+`/home/iecme/robot_backups/workspace_layout_reorg_20261006/mola-grouping-rollback-20261006/`.
+The old MOLA 3.2 workspace archive remains separately recorded in
+`ROBOT_RETIREMENT_RECORD.json`.
 
-Archive: `/home/iecme/robot_backups/mola_3_2_ws_pre_unified_20261006.tar.gz`
-Manifest:
-`/home/iecme/robot_backups/mola_unified_f3e89cf/mola_3_2_ws_pre_unified_20261006.manifest.json`
-
-The live rollback script now restores this archive if the old workspace directory
-is absent. Its pre-edit copy and the old MOLA environment script are also saved
-under `/home/iecme/robot_backups/mola_unified_f3e89cf/`.
-
-## Limits
-
-The native map saved by the GICP pipeline uses a `KeyframePointCloudMap` layer;
-`mm2txt` does not convert that layer. Native save/reload passed, and the occupancy
-map export path passed through Nav2's map saver. No claim is made that `mm2txt`
-exports this native layer.
+The full suite still reports the 20 listed lint/copyright failures. Replay,
+map export/reload, and relocalizer smoke evidence was collected before this
+directory-only regrouping and was not repeated afterward; the fresh build,
+package tests, module discovery, and stationary live probe were repeated.

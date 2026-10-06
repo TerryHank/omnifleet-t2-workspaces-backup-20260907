@@ -6,7 +6,7 @@ import pwd
 
 HERE = Path(__file__).resolve().parent
 BUNDLE = Path('/opt/Foxglove-Studio-CN/resources/app-web/4936.33f3ad98e1e1f7b86b00.js')
-EXT = Path('/home/iecme/workspace/omnifleet_t2_ws/foxglove/foxglove_extension/omnifleet-t2-semantic-waypoints/src')
+EXT = Path('/home/iecme/workspace/visualization/omnifleet_t2_ws/foxglove/foxglove_extension/omnifleet-t2-semantic-waypoints/src')
 backup = Path('/home/iecme/.local/share/omnifleet_t2/nav2-parameter-backups') / str(time.time_ns())
 backup.mkdir(parents=True)
 owner = pwd.getpwnam('iecme')
@@ -36,7 +36,7 @@ if '^/omnifleet_t2/nav2/(read_saved|save_parameters)$' not in text:
 if 'FollowPath' not in text:
     text = text.replace('    param_whitelist:\n', "    param_whitelist:\n      - '^/controller_server[./]FollowPath\\.(max_vel_x|max_speed_xy|max_vel_theta)$'\n", 1)
 bridge.write_text(text)
-runtime_config = Path('/home/iecme/workspace/omnifleet_t2_ws/runtime/etc/omnifleet_t2/foxglove.yaml')
+runtime_config = Path('/home/iecme/workspace/system/workspace_support/omnifleet_t2_ws/runtime/etc/omnifleet_t2/foxglove.yaml')
 if runtime_config.exists():
     shutil.copy2(runtime_config, backup / 'runtime-foxglove.yaml')
     shutil.copy2(bridge, runtime_config)

@@ -1,7 +1,7 @@
 """Scoped source edit. Run only after idle checks and backups on the target robot."""
 from pathlib import Path
 
-root=Path('/home/iecme/omnifleet_t2_ws/src')
+root=Path('/home/iecme/workspace/src')
 driver=root/'omnifleet_bringup/omnifleet_bringup/omnifleet_t2_driver.py'
 text=driver.read_text()
 old='self.create_subscription(Twist, "/cmd_vel", self.cmd_vel_callback, 10)'

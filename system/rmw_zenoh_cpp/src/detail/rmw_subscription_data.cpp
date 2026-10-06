@@ -210,7 +210,8 @@ bool SubscriptionData::init()
 
       AttachmentData attachment_data(attachment_value);
       if (trace::pointcloud_topic(key)) {
-        trace::event("ZENOH_SAMPLE_RX", key, attachment_data.sequence_number(), -1, -1,
+        trace::event(
+          "ZENOH_SAMPLE_RX", key, attachment_data.sequence_number(), -1, -1,
           static_cast<int64_t>(sample.get_payload().size()));
       }
       sub_data->add_new_message(
@@ -373,7 +374,9 @@ rmw_ret_t SubscriptionData::take_one_message(
 
   std::lock_guard<std::mutex> lock(mutex_);
   if (trace::pointcloud_topic(entity_->topic_info().value().name_)) {
-    trace::event("RMW_TAKE_BEGIN", entity_->topic_info().value().name_, 0, static_cast<int64_t>(message_queue_.size()));
+    trace::event(
+      "RMW_TAKE_BEGIN", entity_->topic_info().value().name_, 0,
+      static_cast<int64_t>(message_queue_.size()));
   }
   if (is_shutdown_ || message_queue_.empty()) {
     // This tells rcl that the check for a new message was done, but no messages have come in yet.
@@ -421,7 +424,8 @@ rmw_ret_t SubscriptionData::take_one_message(
   }
   *taken = true;
   if (trace::pointcloud_topic(entity_->topic_info().value().name_)) {
-    trace::event("RMW_TAKE_END", entity_->topic_info().value().name_,
+    trace::event(
+      "RMW_TAKE_END", entity_->topic_info().value().name_,
       msg_data->attachment.sequence_number(), static_cast<int64_t>(message_queue_.size()));
   }
 
@@ -539,7 +543,8 @@ void SubscriptionData::add_new_message(
   const auto sequence_number = msg->attachment.sequence_number();
   message_queue_.emplace_back(std::move(msg));
   if (trace::pointcloud_topic(topic_name)) {
-    trace::event("RMW_ENQUEUE", topic_name, sequence_number,
+    trace::event(
+      "RMW_ENQUEUE", topic_name, sequence_number,
       static_cast<int64_t>(queue_before), static_cast<int64_t>(message_queue_.size()));
   }
 

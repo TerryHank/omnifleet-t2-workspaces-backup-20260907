@@ -63,23 +63,29 @@ def test_invalid_confirmation_counts_are_rejected():
         TrafficLightPolicy(go_confirmations=0)
 
 
-def test_navigation_and_optional_traffic_launch_are_separate_programs():
+def test_navigation_supervisor_stays_separate_from_student_vision_launch():
+    package_root = Path(__file__).parents[1]
+    workspace_root = Path(__file__).parents[3]
     supervisor = (
-        Path(__file__).parents[1]
+        package_root
         / "omnifleet_behaviors"
         / "traffic_light_nav_supervisor.py"
     ).read_text(encoding="utf-8")
+    package_cmake = (package_root / "CMakeLists.txt").read_text(encoding="utf-8")
     launch = (
-        Path(__file__).parents[2]
+        workspace_root
+        / "system"
         / "omnifleet_tutorials"
         / "launch"
-        / "traffic_light_navigation.launch.py"
+        / "vision_02_14_traffic_light.launch.py"
     ).read_text(encoding="utf-8")
+
+    assert "scripts/traffic_light_nav_supervisor" in package_cmake
+    assert 'COURSE_FUNCTION = "02_14_traffic_light"' in launch
+    assert 'default_value="false"' in launch
+    assert "traffic_light_nav_supervisor" not in launch
 
     assert '"/omnifleet_t2/vision/detections"' in supervisor
     assert '"/omnifleet_t2/navigation/traffic_light_pause"' in supervisor
     assert '"/cmd_vel"' not in supervisor
     assert "_publish_zero_lock" not in supervisor
-    assert '"vision_02_14_traffic_light.launch.py"' in launch
-    assert '"enable_motion": "false"' in launch
-    assert 'executable="traffic_light_nav_supervisor"' in launch

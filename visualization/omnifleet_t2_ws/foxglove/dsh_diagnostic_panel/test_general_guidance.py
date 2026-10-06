@@ -42,7 +42,7 @@ def test_adjust_requires_actual_behavior_evidence():
 def test_all_real_panel_fields_have_descriptions():
     import sys,re
     from pathlib import Path
-    root=Path('/home/iecme/workspace/omnifleet_t2_ws/foxglove/nav2_permanent_panel');sys.path.insert(0,str(root))
+    root=Path('/home/iecme/workspace/visualization/omnifleet_t2_ws/foxglove/nav2_permanent_panel');sys.path.insert(0,str(root))
     import nav2_parameter_store as store
     source=(root/'Nav2PermanentPanel.js').read_text()
     catalog={m[0]:m[1] for m in re.findall(r'^\s*\[["\x27]([^"\x27]+)["\x27],\s*["\x27]([^"\x27]+)["\x27]',source,re.M)}

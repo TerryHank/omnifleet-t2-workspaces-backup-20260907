@@ -1,45 +1,50 @@
-# MOLA consolidation and robot acceptance
+# Unified MOLA source and robot acceptance
 
-Status: **PASS**. Local and GitHub source trees keep one canonical source for each
-of the 37 MOLA packages under `localization/<package>`. The robot now uses
-`/home/iecme/workspace/mola_latest_20260917_ws` as its only MOLA workspace.
+Status: post-grouping build and functional runtime checks passed on 2026-10-06.
+The 39 MOLA-related ROS packages are under
+`localization/omnifleet_mola/<package>`; the local MOLA metadata directory is
+`localization/omnifleet_mola/mola_source_metadata`. The full robot workspace has
+68 packages with 68 unique names and installs to
+`/home/iecme/workspace/.runtime/install`.
 
-The old robot workspace was archived outside `/home/iecme/workspace`, verified
-against a file-by-file manifest, and removed after build, replay, and stationary
-sensor acceptance. See [ROBOT_ACCEPTANCE_REPORT.md](ROBOT_ACCEPTANCE_REPORT.md)
-and [ROBOT_RETIREMENT_RECORD.json](ROBOT_RETIREMENT_RECORD.json) for evidence and
-the recovery archive checksums.
+The clean 68-package build passed. Full colcon testing reported 676 tests, 0
+errors, 20 lint/copyright failures, and 0 skipped. All failures are confined to
+the existing driver packages `ros_robot_controller`, `ros_robot_controller_msgs`,
+and `rslidar_msg`; the two `omnifleet_localization` path tests pass after their
+workspace-root calculation was updated for the group directory. See
+[ROBOT_ACCEPTANCE_REPORT.md](ROBOT_ACCEPTANCE_REPORT.md) for runtime evidence.
 
 ## Source and runtime behavior
 
-The latest implementation and parameters are the baseline. The migration retains
+The latest implementation and parameters are the baseline. The migration keeps
 the old-only optional odometry twist/covariance output, smoother direct
 `map -> odom` publication, and bridge wheel-source selection. These features
-remain opt-in. Existing production parameter values were compared against the
-robot snapshot and preserved. See [FEATURE_PARAMETER_MATRIX.md](FEATURE_PARAMETER_MATRIX.md).
+remain opt-in. Existing production parameter values were compared with the
+robot snapshot and preserved. See
+[FEATURE_PARAMETER_MATRIX.md](FEATURE_PARAMETER_MATRIX.md).
 
 `latest_env.bash` clears inherited MOLA module paths before setting the canonical
 installed package paths. The launcher gives `MOLA_MODULES_LIB_PATH` precedence
-over its build-time module path so a running deployment cannot load duplicate
-modules from an archived build tree. The production service environment and its
-systemd loader-path drop-in are versioned here as
-`robot_mola_env.bash` and `24-unified-mola-module-path.conf`.
+over its build-time module path so a deployment cannot load duplicate modules
+from an archived build tree. The production service environment and its
+systemd loader-path drop-in are versioned here as `robot_mola_env.bash` and
+`24-unified-mola-module-path.conf`.
 
-## Validation
+## Validation summary
 
-- Static layout: 67 active ROS packages, 37 MOLA packages, no duplicate package roots.
-- Local Python contracts: 12 tests passed; launch Python and YAML syntax checks passed.
-- Robot build: all 37 packages built; all 20 package test gates passed.
-- Recorded-data replay: baseline and candidate trajectories were byte-identical;
-  the saved native map reloaded successfully.
-- Stationary robot: post-deletion 30-second sample had 301 point clouds and 301
-  finite poses; maximum pose age was 126.7 ms, with no samples over 500 ms.
-- Map export: the live 500x500 occupancy map exported to PGM and YAML.
-- Runtime: all 37 mapped MOLA/MP2P libraries came from the unified install;
-  no live process environment or memory map retained the old workspace path.
-- Nav2 `controller_server` and `planner_server` parameter files matched their
-  pre-migration snapshots.
+- Source layout: 68 active package names, 68 unique; all 39 MOLA-related ROS
+  packages are under the single group directory.
+- Robot build: all 68 packages built successfully after grouping.
+- MOLA targeted regression matrix: 20/20 gates passed before grouping; the
+  post-group full suite has no functional package failures.
+- Full colcon suite: 676 tests, 0 errors, 20 lint/copyright failures, 0 skipped;
+  failures are confined to the three driver packages listed above.
+- Replay: 2,025 MOLA registrations, zero ICP rejects, 0.78% dropped frames,
+  finite timestamped poses/covariance (recorded before the path-only regrouping).
+- Post-group stationary live probe: 81 finite odometry samples over eight
+  seconds, zero endpoint displacement, and no `/robot_113/msc/nav_cmd_vel`
+  samples.
+- Map export/reload and relocalizer smoke test passed before regrouping.
+- Runtime: all 16 Omnifleet services are active; no chassis motion command was
+  sent.
 
-No chassis motion command was sent. The archive is the recovery source for the
-removed robot workspace; the retained rollback script restores it before running
-the prior production restart procedure.

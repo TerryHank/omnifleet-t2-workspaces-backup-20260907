@@ -16,7 +16,7 @@ import parameter_links
 import navigation_restart
 import height_linkage
 
-YAML_FILE = Path('/home/iecme/workspace/omnifleet_t2_ws/install/omnifleet_planner/share/omnifleet_planner/config/nav2_t2.yaml')
+YAML_FILE = Path('/home/iecme/workspace/.runtime/install/omnifleet_planner/share/omnifleet_planner/config/nav2_t2.yaml')
 BACKUPS = Path('/home/iecme/.local/share/omnifleet_t2/nav2-parameter-backups')
 SELECTED_FILE = Path('/home/iecme/.local/share/omnifleet_t2/nav2-selected-algorithms.json')
 HEIGHT_FILE = Path('/home/iecme/.local/share/omnifleet_t2/map-height.json')

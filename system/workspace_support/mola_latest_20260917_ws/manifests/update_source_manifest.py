@@ -3,9 +3,9 @@ import json
 import subprocess
 from pathlib import Path
 
-p = Path("/home/iecme/workspace/mola_latest_20260917_ws/manifests/MOLA_LATEST_SOURCE_MANIFEST.json")
+p = Path("/home/iecme/workspace/system/workspace_support/mola_latest_20260917_ws/manifests/MOLA_LATEST_SOURCE_MANIFEST.json")
 d = json.loads(p.read_text())
-root = Path("/home/iecme/workspace/mola_latest_20260917_ws/src")
+root = Path("/home/iecme/workspace/localization/omnifleet_mola")
 for repo in d["repositories"]:
     checkout = root / repo["repo"]
     if (checkout / ".git").exists():
@@ -25,7 +25,7 @@ d["external_build_dependencies"] = {
 }
 p.write_text(json.dumps(d, indent=2) + "\n")
 
-md = Path("/home/iecme/workspace/mola_latest_20260917_ws/manifests/MOLA_LATEST_SOURCE_MANIFEST.md")
+md = Path("/home/iecme/workspace/system/workspace_support/mola_latest_20260917_ws/manifests/MOLA_LATEST_SOURCE_MANIFEST.md")
 base = md.read_text().split("\n## Fixed submodules and external dependencies", 1)[0].rstrip()
 lines = [base, "", "## Fixed submodules and external dependencies", ""]
 for repo in d["repositories"]:

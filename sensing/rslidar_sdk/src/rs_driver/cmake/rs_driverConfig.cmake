@@ -19,8 +19,8 @@ if(${ENABLE_TRANSFORM})
   add_definitions("-DENABLE_TRANSFORM")
 endif(${ENABLE_TRANSFORM})
 
-set(rs_driver_INCLUDE_DIRS "/home/iecme/workspace/hardware_drivers_ws/src/rslidar_sdk/src/rs_driver/src;/usr/local/rslidar_sdk/include")
-set(RS_DRIVER_INCLUDE_DIRS "/home/iecme/workspace/hardware_drivers_ws/src/rslidar_sdk/src/rs_driver/src;/usr/local/rslidar_sdk/include")
+set(rs_driver_INCLUDE_DIRS "/home/iecme/workspace/sensing/rslidar_sdk/src/rs_driver/src;/usr/local/rslidar_sdk/include")
+set(RS_DRIVER_INCLUDE_DIRS "/home/iecme/workspace/sensing/rslidar_sdk/src/rs_driver/src;/usr/local/rslidar_sdk/include")
 
 set(rs_driver_LIBRARIES "pthread;pcap")
 set(RS_DRIVER_LIBRARIES "pthread;pcap")

@@ -3,7 +3,7 @@ import pytest
 import yaml
 from nav2_parameter_store import CONTROL, SPECS, save_changes, saved_values
 
-SOURCE = Path('/home/iecme/workspace/omnifleet_t2_ws/src/omnifleet_planner/config/nav2_t2.yaml')
+SOURCE = Path('/home/iecme/workspace/planning/omnifleet_planner/config/nav2_t2.yaml')
 
 def config(tmp_path):
     target = tmp_path / 'nav.yaml'

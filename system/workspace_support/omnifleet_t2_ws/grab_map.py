@@ -48,5 +48,5 @@ for i, v in enumerate(data):
         px[x, y] = 255
     else:
         px[x, y] = 0
-img.save('/home/iecme/workspace/omnifleet_t2_ws/map_snapshot.png')
+img.save('/home/iecme/workspace/map_snapshot.png')
 print('saved map_snapshot.png size', img.size)

@@ -8,7 +8,7 @@ rclpy.init();n=Node('msc_inflation_precheck');changes={}
 def call(typ,path,req):
  c=n.create_client(typ,path);assert c.wait_for_service(timeout_sec=5)
  f=c.call_async(req);rclpy.spin_until_future_complete(n,f,timeout_sec=5);assert f.done();return f.result()
-target=Path('/home/iecme/omnifleet_t2_ws/src/omnifleet_planner/config/nav2_t2.yaml')
+target=Path('/home/iecme/workspace/src/omnifleet_planner/config/nav2_t2.yaml')
 old=target.read_bytes();cfg=yaml.safe_load(old)
 backup=Path('/home/iecme/robot_backups/msc_v1_20260909')/('nav2-before-inflation-'+str(time.time_ns())+'.yaml');backup.write_bytes(old)
 for scope in ('local','global'):

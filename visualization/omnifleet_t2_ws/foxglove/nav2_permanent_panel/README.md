@@ -4,7 +4,7 @@
 
 实际启动入口通过 `omnifleet_planner` 的安装目录读取 `config/nav2_t2.yaml`。
 该文件当前是源码 YAML 的软链接：
-`/home/iecme/workspace/omnifleet_t2_ws/src/omnifleet_planner/config/nav2_t2.yaml`。
+`/home/iecme/workspace/planning/omnifleet_planner/config/nav2_t2.yaml`。
 服务解析软链接后更新源码文件，因此下一次启动及正常重建会保留值。
 临时的 `/tmp/launch_params_*` 不会被当成永久文件修改。
 
@@ -61,13 +61,9 @@ Foxglove 使用 `Nav2PermanentPanel.js`。当前中文构建没有本地扩展 l
 当前 113 实验导航栈的手动启动命令（先正常停止已有 Nav2，避免重复节点）：
 
 ```bash
-source /opt/ros/humble/setup.bash
-source /home/iecme/workspace/hardware_drivers_ws/install/setup.bash
-source /home/iecme/workspace/mola_3_2_ws/install/setup.bash
-source /home/iecme/workspace/omnifleet_t2_ws/install/setup.bash
-source /home/iecme/workspace/omnifleet_t2_mola_experiments_ws/install/setup.bash
+source /home/iecme/omnifleet_fleet/env.bash
 export ROS_DOMAIN_ID=73 RMW_IMPLEMENTATION=rmw_fastrtps_cpp FASTDDS_BUILTIN_TRANSPORTS=LARGE_DATA
-cd /home/iecme/workspace/omnifleet_t2_mola_experiments_ws
+cd /home/iecme/workspace
 ros2 launch omnifleet_t2_mola_experiments nav2_direct.launch.py transform_tolerance:=0.8 odom_topic:=/odom obstacle_topic:=/rslidar_points obstacle_clearing:=true
 ```
 

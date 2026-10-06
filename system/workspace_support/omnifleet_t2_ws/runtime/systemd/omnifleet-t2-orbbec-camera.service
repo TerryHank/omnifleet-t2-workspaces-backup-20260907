@@ -9,9 +9,9 @@ User=iecme
 Group=iecme
 Environment=HOME=/home/iecme
 EnvironmentFile=/etc/omnifleet_t2/robot.env
-WorkingDirectory=/home/iecme/workspace/hardware_drivers_ws
-ExecStartPre=/usr/bin/mkdir -p /home/iecme/workspace/hardware_drivers_ws/Log
-ExecStart=/bin/bash -lc 'source /opt/ros/$ROS_DISTRO/setup.bash && source $OMNIFLEET_T2_SENSOR_WS/install/setup.bash && exec ros2 launch orbbec_camera ob_camera.launch.py camera_name:=camera color_width:=640 color_height:=480 color_fps:=30 color_format:=MJPG depth_width:=640 depth_height:=400 depth_fps:=30 depth_format:=Y12 enable_ir:=false depth_registration:=true align_mode:=HW enable_point_cloud:=true enable_colored_point_cloud:=true'
+WorkingDirectory=/home/iecme/workspace/.runtime/logs/hardware_drivers
+ExecStartPre=/usr/bin/mkdir -p /home/iecme/workspace/.runtime/logs/hardware_drivers/Log
+ExecStart=/bin/bash -lc 'source /home/iecme/omnifleet_fleet/env.bash && exec ros2 launch orbbec_camera ob_camera.launch.py camera_name:=camera color_width:=640 color_height:=480 color_fps:=30 color_format:=MJPG depth_width:=640 depth_height:=400 depth_fps:=30 depth_format:=Y12 enable_ir:=false depth_registration:=true align_mode:=HW enable_point_cloud:=true enable_colored_point_cloud:=true'
 Restart=always
 RestartSec=2
 KillSignal=SIGINT

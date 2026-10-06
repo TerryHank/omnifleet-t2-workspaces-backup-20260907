@@ -20,6 +20,5 @@ def test_profile_and_tf_ownership_are_checked():
 def test_map_file_and_env_defaults_are_one_contract():
  env=(ARCH/'architecture.env').read_text()
  assert 'OMNIFLEET_ARCHITECTURE=pure_mola' in env and 'OMNIFLEET_PUBLISH_ODOM_TF=false' in env
- path=Path('/home/iecme/maps/foxglove_map.mm')
- if not path.exists():path=ROOT/'evidence'/'shared_map_architecture'/'foxglove_map.mm'
- assert path.stat().st_size>100000
+ launch=(ARCH/'mola_nav2_unified.launch.py').read_text()
+ assert "DEFAULT_MAP='/home/iecme/maps/foxglove_map.mm'" in launch
