@@ -136,9 +136,15 @@ class FleetPanelModel:
                 'rank':order.index(robot)+1 if robot in order else None,'online':s['online'],
                 'pose':display_pose,'local_pose_3d':s.get('local_pose_3d'),'pose_age':s.get('pose_age',99),'health':s.get('health','OFFLINE'),
                 'ready':s.get('fleet_ready',False),'busy':self.robot_busy(robot),'supports_route':s.get('supports_route',False),
+                'local_nav_ready':bool(s.get('nav_ready') and s.get('control_gate_ready') and not s.get('estop') and
+                    not s.get('manual_active') and not s.get('local_override') and not s.get('goal_error')),
+                'local_busy':bool(s.get('nav_active') or s.get('pending_goal')),
+                'estop':bool(s.get('estop')),'manual_active':bool(s.get('manual_active')),
+                'pose_stationary':bool(s.get('pose_stationary')),
                 'reason':('本地导航已接管，需显式交还协同' if s.get('local_override') else s.get('goal_error') or s.get('safety_stop_reason') or ''),
                 'body':{k:body.get(k,v) for k,v in [('length',.5),('width',.37)]},
                 'planned_path':s.get('planned_path',[]),'alignment':self.core.history['alignments'].get(robot,{}).get('transform')})
         return {'version':1,'revision':self.revision,'config':c,'robots':robots,'busy':self.busy(),
+                'local_busy':any(r['local_busy'] for r in robots),
                 'motion_enabled':bool(self.core.config.get('allow_motion')),'previews':self.previews,
                 'mission':self.core.status()['mission'],'tasks':{k:{f:t.get(f) for f in ('state','owner','robot_id','reason')} for k,t in list(self.core.task_board.tasks.items())[-20:]}}

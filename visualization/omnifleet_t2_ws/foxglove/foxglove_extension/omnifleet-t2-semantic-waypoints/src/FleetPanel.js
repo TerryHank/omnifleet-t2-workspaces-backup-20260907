@@ -10,14 +10,16 @@ export function initFleetPanel(context) {
     [data-testid=fleet-panel] button:disabled{opacity:.45;cursor:default}
     .fleet-muted{font-size:.88em;opacity:.75}.fleet-status{white-space:pre-wrap;overflow-wrap:anywhere;padding:8px;border-left:3px solid #4389dc;background:#4389dc14}
   </style>
-  <div class="fleet-row"><strong style="font-size:1.2em;flex:1">多机协同</strong><button data-ui="smaller">−</button><button data-ui="larger">＋</button><button data-ui="reset">恢复</button></div>
-  <div class="fleet-card"><strong>1 · 域内在线车辆</strong><div data-ui="robots"></div><label>当前编辑车辆 <select class="fleet-panel-input" data-ui="selected"></select></label><div class="fleet-muted">自动发现域内在线车辆，离线约2秒移出列表。勾选只参与任务选择，不会立即发车。未接入协同接口的车辆仅显示。</div></div>
-  <div class="fleet-card"><strong>2 · 协同模式</strong><select class="fleet-panel-input" data-ui="mode"><option value="independent">每辆车独立规划航点</option><option value="leader">领航模式</option></select><div data-ui="formation"><label>领航车（编号1） <select class="fleet-panel-input" data-ui="leader"></select></label><label style="display:block;margin-top:8px">相邻车辆跟随距离（米） <input class="fleet-panel-input" style="width:90px" type="number" min="1.4" max="5" step="0.1" data-ui="spacing"></label><div class="fleet-muted">编号2跟随领航车。距离按两车中心沿行驶轨迹计算；转弯保留走过的轨迹。</div></div></div>
-  <div class="fleet-card"><strong>3 · 所选车辆的多点路线</strong><div class="fleet-muted">在“多机协同3D”工具栏使用“发布点”或“发布位姿”添加航点。也可逐行输入：x, y, 朝向角度（°）。</div><textarea class="fleet-panel-input" rows="6" data-ui="route" placeholder="1.0, 0.0, 0&#10;2.0, 0.0, 0"></textarea><div class="fleet-row"><button data-ui="save">保存航点</button><button data-ui="undo">删除最后点</button><button data-ui="clear">清空路线</button><button data-ui="preview">预检路线</button></div><div class="fleet-muted">浅色线为共享地图预检路径，实色线为车辆Nav2实际路径；最终点保留所填朝向。</div></div>
-  <div class="fleet-row"><button data-ui="start" style="background:#2475c9;color:white">开始所选车辆</button><button data-ui="stop" style="background:#a63838;color:white">停止所选任务</button></div><p class="fleet-status" data-ui="status">正在连接协同后台…</p><div class="fleet-muted" data-ui="health"></div><div class="fleet-card"><strong>任务状态</strong><div data-ui="tasks">暂无任务</div></div>`;
+  <div class="fleet-row"><strong style="font-size:1.2em;flex:1">OmniFleet 导航</strong><button data-ui="smaller">−</button><button data-ui="larger">＋</button><button data-ui="reset">恢复</button></div>
+  <p class="fleet-status" data-ui="navigation">等待车辆状态…</p>
+  <div class="fleet-card"><strong>在线车辆</strong><div data-ui="robots"></div><label data-ui="selected-row">当前编辑车辆 <select class="fleet-panel-input" data-ui="selected"></select></label><div class="fleet-muted">车辆显示不依赖激活；激活只决定车队任务参与者。离线或未对齐车辆不会被当作有效目标。</div></div>
+  <div class="fleet-card" data-ui="fleet-settings"><strong>车队任务设置</strong><select class="fleet-panel-input" data-ui="mode"><option value="independent">所选车辆独立路线</option><option value="leader">领航编队</option></select><div data-ui="formation"><label>领航车（编号1） <select class="fleet-panel-input" data-ui="leader"></select></label><label style="display:block;margin-top:8px">相邻车辆跟随距离（米） <input class="fleet-panel-input" style="width:90px" type="number" min="1.4" max="5" step="0.1" data-ui="spacing"></label><div class="fleet-muted">编号2沿领航车已走轨迹跟随。距离按车辆中心计算。</div></div></div>
+  <div class="fleet-card" data-ui="route-card"><strong>车队路线</strong><div class="fleet-muted">在统一 3D 地图中发布位姿，或逐行输入 x、y、朝向角度（°）。车队路线仍须先预检，再显式开始。</div><textarea class="fleet-panel-input" rows="6" data-ui="route" placeholder="1.0, 0.0, 0&#10;2.0, 0.0, 0"></textarea><div class="fleet-row"><button data-ui="save">保存航点</button><button data-ui="undo">删除最后点</button><button data-ui="clear">清空路线</button><button data-ui="preview">预检路线</button></div><div class="fleet-muted">浅色线为共享地图预检路径，实色线为车辆 Nav2 实际路径；终点保留朝向。</div></div>
+  <div class="fleet-card" data-ui="single-card" hidden><strong>单车导航</strong><div class="fleet-muted">地图位姿直接提交给唯一在线车辆的本地 Nav2；安全门和急停仍由车端检查。</div></div>
+  <div class="fleet-row"><button data-ui="start" style="background:#2475c9;color:white">开始车队路线</button><button data-ui="stop" style="background:#a63838;color:white">停止任务</button></div><p class="fleet-status" data-ui="status">正在连接协同后台…</p><div class="fleet-muted" data-ui="health"></div><div class="fleet-card"><strong>任务状态</strong><div data-ui="tasks">暂无任务</div></div>`;
   const ui={};root.querySelectorAll('[data-ui]').forEach(e=>{ui[e.dataset.ui]=e;e.dataset.testid='fleet-'+e.dataset.ui;});
   const reload=document.createElement('button');reload.textContent='载入已保存';reload.dataset.testid='fleet-reload';ui.save.after(reload);ui.reload=reload;
-  let state,membership="",revision=-1,disposed=false,dirty=false,serial=0,receivedAt=0,draftBase=null,draftOwner=null;const pending=new Map(),rows=new Map();
+  let state,revision=-1,rosterSignature='',disposed=false,dirty=false,serial=0,receivedAt=0,draftBase=null,draftOwner=null;const pending=new Map(),rows=new Map();
   let scale=Number(context.initialState?.fontScale)||1;
   const setScale=()=>{root.style.fontSize=(14*scale)+'px';context.saveState?.({...context.initialState,fontScale:scale});};
   root.style.fontSize=(14*scale)+'px';
@@ -53,12 +55,16 @@ export function initFleetPanel(context) {
   function options(select,active){const chosen=select.value;select.replaceChildren();for(const r of active){const o=document.createElement('option');o.value=r.id;o.textContent=r.name;select.append(o);}select.value=chosen;}
   function render(){
     if(!state||disposed)return;
-    const c=state.config,stale=Date.now()-receivedAt>2000,online=stale?[]:state.robots.filter(r=>r.online),active=online.filter(r=>r.active),robot=online.find(r=>r.id===c.selected),waiting=pending.size>0||stale;
-    if(stale)message('协同后台数据已中断，等待重新连接',true);
-    if(revision!==state.revision||membership!==JSON.stringify(online.map(r=>[r.id,r.registered]))){
-      membership=JSON.stringify(online.map(r=>[r.id,r.registered]));
-      revision=state.revision;ui.robots.replaceChildren();rows.clear();if(!online.length)ui.robots.textContent="当前未发现在线车辆";
-      for(const r of online){
+    const c=state.config,active=state.robots.filter(r=>r.active),robot=state.robots.find(r=>r.id===c.selected),stale=Date.now()-receivedAt>2000,waiting=pending.size>0||stale,mode=stale?'WAITING':(state.routing_mode||'WAITING');
+    ui.navigation.textContent=stale?'车辆状态中断超过 2 秒；禁止发送新目标。停止入口仍可用。':(state.routing_reason||'等待车辆状态');
+    ui.navigation.style.borderColor=mode==='WAITING'?'#d65c5c':mode==='SINGLE'?'#4389dc':'#8d6ac8';
+    ui.selectedRow.hidden=mode!=='FLEET';ui.fleetSettings.hidden=mode!=='FLEET';ui.routeCard.hidden=mode!=='FLEET';ui.singleCard.hidden=mode!=='SINGLE';
+    ui.start.hidden=mode!=='FLEET';
+    if(stale)message('车辆状态已过期；新目标会被后端拒绝',true);
+    const nextRosterSignature=state.robots.map(r=>`${r.id}:${r.online}:${r.registered}`).join('|');
+    if(revision!==state.revision||rosterSignature!==nextRosterSignature){
+      revision=state.revision;rosterSignature=nextRosterSignature;ui.robots.replaceChildren();rows.clear();
+      for(const r of state.robots){
         const line=document.createElement('div');line.className='fleet-card';line.style.margin='4px 0';
         const top=document.createElement('div');top.className='fleet-row';const check=document.createElement('input');check.type='checkbox';check.checked=r.active;check.dataset.testid='fleet-active-'+r.id;
         check.onchange=()=>run(()=>configure({active:check.checked?[...c.active,r.id]:c.active.filter(id=>id!==r.id)}));
@@ -75,14 +81,14 @@ export function initFleetPanel(context) {
       if(!dirty)ui.route.value=(c.routes[c.selected]??[]).map(p=>[p[0].toFixed(3),p[1].toFixed(3),(p[2]*180/Math.PI).toFixed(1)].join(', ')).join('\n');
     }
     const healthNames={MANUAL:'手动控制',OFFLINE:'离线',READY:'就绪',ESTOP:'急停',FAULT:'故障',WAITING_ALIGNMENT:'等待协同对齐',WAITING_CONTROL_GATE:'等待控制接口',WAITING_LOCALIZATION_OR_NAV2:'等待定位/导航'};
-    for(const r of online){const e=rows.get(r.id);e.check.disabled=e.name.disabled=waiting||state.busy||r.registered===false;e.rank.disabled=waiting||state.busy||!r.active;e.health.textContent=stale?'通讯中断':(r.online?'在线':'离线')+' · '+(r.pose?'定位可显示':'等待共享定位')+' · '+(healthNames[r.health]??r.health)+(r.reason?' · '+r.reason:'');}
-    ui.selected.disabled=waiting||!active.length;ui.mode.disabled=ui.leader.disabled=ui.spacing.disabled=waiting||state.busy;
+    for(const r of state.robots){const e=rows.get(r.id);e.check.disabled=waiting||state.busy||mode==='SINGLE';e.name.disabled=waiting||state.busy||mode==='SINGLE';e.rank.disabled=waiting||state.busy||mode!=='FLEET'||!r.active;e.health.textContent=stale?'通讯中断':(r.online?'在线':'离线')+' · '+(r.pose?'完整模型/定位可显示':'等待共享定位')+' · '+(healthNames[r.health]??r.health)+(r.reason?' · '+r.reason:'');}
+    ui.selected.disabled=waiting||mode!=='FLEET'||!active.length;ui.mode.disabled=ui.leader.disabled=ui.spacing.disabled=waiting||state.busy||mode!=='FLEET';
     ui.formation.style.display=c.mode==='leader'?'block':'none';
     const readonly=!robot||robot.busy||(c.mode==='leader'&&c.selected!==c.leader);
-    ui.route.disabled=waiting||readonly;for(const key of ['save','reload','undo','clear','preview'])ui[key].disabled=waiting||readonly;
-    ui.start.textContent=c.mode==='leader'?'开始领航编队':'开始所选车辆';ui.stop.textContent=c.mode==='leader'?'停止编队任务':'停止所选任务';
-    ui.start.disabled=waiting||readonly||!state.motion_enabled||!robot?.ready;ui.stop.disabled=waiting||!state.busy;
-    ui.health.textContent=state.motion_enabled?'运动接口已启用；开始时仍检查定位、地图和车间安全条件。':'当前为不运动验收模式：可激活显示、设置路线和预检，发车按钮禁用。';
+    ui.route.disabled=waiting||mode!=='FLEET'||readonly;for(const key of ['save','reload','undo','clear','preview'])ui[key].disabled=waiting||mode!=='FLEET'||readonly;
+    ui.start.textContent=c.mode==='leader'?'开始领航编队':'开始所选车辆';ui.stop.textContent=mode==='SINGLE'?'停止本车导航':c.mode==='leader'?'停止编队任务':'停止所选任务';
+    ui.start.disabled=waiting||mode!=='FLEET'||readonly||!state.motion_enabled||!robot?.ready;ui.stop.disabled=!(state.busy||state.local_cancel_available);
+    ui.health.textContent=mode==='SINGLE'?'地图位姿提交给本地 ExecuteNavigation；急停和控制门由车端检查。':mode==='WAITING'?(state.routing_reason||'等待车辆状态'):state.motion_enabled?'车队开始时仍检查定位、地图和安全门。':'当前为不运动验收模式：可设置和预检路线，发车按钮禁用。';
     ui.tasks.textContent=Object.entries(state.tasks).map(([id,t])=>`${t.owner||t.robot_id||'待分配'}：${t.state}${t.reason?' · '+t.reason:''}`).join('\n')||'暂无独立任务';
     if(c.mode==='leader')ui.tasks.textContent+='\n编队：'+(state.mission?.state??'IDLE');
   }

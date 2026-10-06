@@ -11,7 +11,7 @@ robot_113:
       - ^/robot_113/initialpose$
       - ^/robot_113/(planner_selector|controller_selector)$
       - ^/robot_113/omnifleet_t2/waypoints/(add_pose|next_name|rename|navigate_to|start|stop|undo|clear|update)$
-      - ^/fleet/ui/(command|add_point|add_pose)$
+      - ^/fleet/ui/(command|add_point|add_pose|set_initialpose)$
       service_whitelist:
       - "^/omnifleet_t2/nav2/(read_saved|save_parameters)$"
       - ^/robot_113/omnifleet_t2/nav2/reset_map$
