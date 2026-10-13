@@ -1,0 +1,11 @@
+{
+  "repository": "TerryHank/omnifleet-t2-workspaces-backup-20260907",
+  "tag": "robot113-source-20261013-111614",
+  "parent_commit": "6816b7074ada64da9a9f8ca7205c869d464bf421",
+  "archive_sha256": "2e2785f825fa87592306354d2e7534a248cadb662450707be9571039673e36f3",
+  "archive_bytes": 97752680,
+  "snapshot_completed_utc": "2026-10-13T03:16:14.748987+00:00",
+  "files": 13920,
+  "symlinks": 4,
+  "redacted_files": 5
+}
