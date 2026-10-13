@@ -1,0 +1,17 @@
+{
+  "source_files": 7,
+  "installed_files": {
+    "lib/libmola_lidar_odometry.so.3.2.0": "0caf3a075290eb399ae893c1e3ee51f757bce9019327aad14fc9a49639957b85",
+    "bin/mola-lidar-odometry-cli": "64695f6128eaf1f41287a9de24ca84073542e779e00e61b546eaf46ae3516b27",
+    "include/mola_lidar_odometry/LidarOdometry.h": "f42117cd523f7c285a2397c93fe69132dbe5ffb5c1baa01713c334b458653001",
+    "include/mola_lidar_odometry/WorkerPipelineStats.h": "d501563da7b4dde5b1b03bd41ca80cfd2c031b57f6aa3ad38ff25a9d7e3cd9ea",
+    "share/mola_lidar_odometry/pipelines/lidar3d-gicp.yaml": "e51a5836a61e5686a29e07770a57e67727cdd5f7259e8fca915c773bf48b7cb0"
+  },
+  "backup": "/home/iecme/robot_backups/deskew_unification_20261013",
+  "original_install_symlinks": {
+    "share/mola_lidar_odometry/pipelines/lidar3d-gicp.yaml": "/home/iecme/omnifleet_ws/src/localization/omnifleet_mola/mola_lidar_odometry/pipelines/lidar3d-gicp.yaml"
+  },
+  "services_restarted": false,
+  "validation": "PASS_BUILD / PASS_UNIT / PASS_ROSBAG_REGRESSION / PENDING_RUNTIME_ACTIVATION",
+  "activation": "New process loads the installed single-deskew version; current process keeps its loaded version."
+}

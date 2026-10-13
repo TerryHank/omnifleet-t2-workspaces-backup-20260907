@@ -1,0 +1,42 @@
+{
+  "source": "/home/iecme/omnifleet_ws/src/localization/omnifleet_mola/mola_lidar_odometry",
+  "candidate": "/home/iecme/robot_backups/deskew_unification_20261013/candidate/mola_lidar_odometry",
+  "backup": "/home/iecme/robot_backups/deskew_unification_20261013",
+  "changes": [
+    {
+      "path": "module/src/LidarOdometry_ProcessScan.cpp",
+      "before_sha256": "d7a90eac11ce1a577cff9dcddfce7c2b625bde8a62638a518e4a0748002b1ed0",
+      "after_sha256": "041aec8502679b38cbb71b80b530d0562138a4a41007b94b3bf32dfeb79ab96d"
+    },
+    {
+      "path": "module/src/LidarOdometry_Initialize.cpp",
+      "before_sha256": "e931cf395ee1f88f92fcf4fed2caede472e9511fd0319f7c741e540828c7a8fe",
+      "after_sha256": "6712a7ca0a72b23544e314d8b16774a034e12aaceb42d140ed5d824ac6e666a8"
+    },
+    {
+      "path": "module/include/mola_lidar_odometry/LidarOdometry.h",
+      "before_sha256": "ea50425e1c3a030d70b6c8a46c3d126ed453d9a2cea999204bd4d4d3aac0d8c1",
+      "after_sha256": "f42117cd523f7c285a2397c93fe69132dbe5ffb5c1baa01713c334b458653001"
+    },
+    {
+      "path": "module/include/mola_lidar_odometry/WorkerPipelineStats.h",
+      "before_sha256": "c5cb6ba8c39a5c682d19b0c451ca3db4a22aef7a916bbb6f84382f2debce085d",
+      "after_sha256": "d501563da7b4dde5b1b03bd41ca80cfd2c031b57f6aa3ad38ff25a9d7e3cd9ea"
+    },
+    {
+      "path": "pipelines/lidar3d-gicp.yaml",
+      "before_sha256": "f8cd42e901c269cb0ad3c42a1c76fd180b8491c3904456087c3c099a422f46b1",
+      "after_sha256": "e51a5836a61e5686a29e07770a57e67727cdd5f7259e8fca915c773bf48b7cb0"
+    },
+    {
+      "path": "test/test_single_deskew.cpp",
+      "before_sha256": null,
+      "after_sha256": "410d64866c9c7bac4bbc425b50765fa1d6fa7cb38d739afd27e0abf0b50d4568"
+    },
+    {
+      "path": "test/CMakeLists.txt",
+      "before_sha256": "94a21bf77b6f6e40fe2dbc0111a83679055e3a868df5fce0180096a9ab8bc023",
+      "after_sha256": "4c3482ce7c0ceda6c7b90d3ab6ce5e48f2149c1e7080d544e6b841583a04cd00"
+    }
+  ]
+}

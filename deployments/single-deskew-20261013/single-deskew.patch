@@ -1,0 +1,271 @@
+--- a/module/src/LidarOdometry_ProcessScan.cpp
++++ b/module/src/LidarOdometry_ProcessScan.cpp
+@@ -659,25 +659,15 @@
+     mp2p_icp_filters::apply_filter_pipeline(state_.pc_prefilter, *observation, profiler_);
+   }
+ 
+-  // Run navigation and localization through the official FilterDeskew branches.
+-  const bool use_nav_deskew =
+-    params_.publish_navigation_deskewed_scans && !state_.pc_nav_deskew.empty() &&
+-    (!params_.optimize_twist || isPipelineUsingIMU_locked());
+-
+-  const bool use_early_deskew =
++  // Deskew once; localization and navigation share the full-range result.
++  const bool use_deskew =
+     !state_.pc_deskew.empty() && (!params_.optimize_twist || isPipelineUsingIMU_locked());
+ 
+-  if (use_nav_deskew || use_early_deskew) {
+-    ProfilerEntry tle1(profiler_, "onLidar.1.deskew_official_branches");
++  if (use_deskew) {
++    ProfilerEntry tle1(profiler_, "onLidar.1.deskew");
+     auto lckImu = mrpt::lockHelper(imu_state_mtx_);
+-    if (use_nav_deskew) {
+-      WorkerPipelineStats::Timer metric(timing.ms[WorkerPipelineStats::NavDeskew]);
+-      mp2p_icp_filters::apply_filter_pipeline(state_.pc_nav_deskew, *observation, profiler_);
+-    }
+-    if (use_early_deskew) {
+-      WorkerPipelineStats::Timer metric(timing.ms[WorkerPipelineStats::EarlyDeskew]);
+-      mp2p_icp_filters::apply_filter_pipeline(state_.pc_deskew, *observation, profiler_);
+-    }
++    WorkerPipelineStats::Timer metric(timing.ms[WorkerPipelineStats::Deskew]);
++    mp2p_icp_filters::apply_filter_pipeline(state_.pc_deskew, *observation, profiler_);
+   } else {
+     // Fallback:
+     observation->layers["deskewed"] = observation->layers["raw"];
+@@ -1660,12 +1650,13 @@
+   }
+ 
+   // Prepare deskewed scan for publishing:
+-  if (params_.publish_deskewed_scans && fullCloudForVizAndPublish && state_.last_icp_was_good) {
++  if ((params_.publish_deskewed_scans || params_.publish_navigation_deskewed_scans) &&
++      fullCloudForVizAndPublish && state_.last_icp_was_good) {
+     ProfilerEntry tleDs(profiler_, "onLidar.5.prepare_deskewed_publish");
+ 
+-    // If we used the early deskew, fullCloudForVizAndPublish is
++    // If we used the shared deskew, fullCloudForVizAndPublish is
+     // already deskewed. If in fallback path, we need one final deskew:
+-    if (!use_early_deskew && observation->layers.count("raw") != 0) {
++    if (!use_deskew && observation->layers.count("raw") != 0) {
+       mp2p_icp::metric_map_t mm;
+       mm.layers["raw"] = observation->layers.at("raw");
+       mp2p_icp_filters::apply_filter_pipeline(state_.obsDeskewForViz, mm);
+@@ -1675,15 +1666,16 @@
+ 
+     // Transform to global (map) frame:
+     // Publish a transformed cloud to avoid imperfect positioning in RViz / FoxGlove due to latency between /tf and scans:
+-    auto tfCloud = mrpt::maps::CGenericPointsMap::Create();
+-    tfCloud->insertAnotherMap(fullCloudForVizAndPublish.get(), state_.last_lidar_pose.mean);
+-    state_.last_deskewed_scan_for_publishing = tfCloud;
++    if (params_.publish_deskewed_scans) {
++      auto tfCloud = mrpt::maps::CGenericPointsMap::Create();
++      tfCloud->insertAnotherMap(fullCloudForVizAndPublish.get(), state_.last_lidar_pose.mean);
++      state_.last_deskewed_scan_for_publishing = tfCloud;
++    }
+   }
+ 
+   state_.last_navigation_deskewed_scan_for_publishing.reset();
+-  if (use_nav_deskew && state_.last_icp_was_good &&
+-      observation->layers.count("nav_deskewed") != 0) {
+-    const auto navPts = observation->point_layer("nav_deskewed");
++  if (params_.publish_navigation_deskewed_scans && state_.last_icp_was_good) {
++    const auto navPts = fullCloudForVizAndPublish;
+     if (navPts) {
+       WorkerPipelineStats::Timer navMetric(timing.ms[WorkerPipelineStats::NavCloud]);
+       mrpt::poses::CPose3D sensorPose;
+--- a/module/src/LidarOdometry_Initialize.cpp
++++ b/module/src/LidarOdometry_Initialize.cpp
+@@ -372,14 +372,7 @@
+         }
+       }
+ 
+-      // Navigation deskew pass: full-range raw cloud, kept separate from ICP.
+-      if (c.has("observations_navigation_deskew_pass")) {
+-        state_.pc_nav_deskew = mp2p_icp_filters::filter_pipeline_from_yaml(
+-          c["observations_navigation_deskew_pass"], this->getMinLoggingLevel());
+-        mp2p_icp::AttachToParameterSource(state_.pc_nav_deskew, state_.parameter_source);
+-      }
+-
+-      // Early deskew pass:
++      // Shared deskew pass for localization and navigation:
+       if (c.has("observations_deskew_pass")) {
+         state_.pc_deskew = mp2p_icp_filters::filter_pipeline_from_yaml(
+           c["observations_deskew_pass"], this->getMinLoggingLevel());
+--- a/module/include/mola_lidar_odometry/LidarOdometry.h
++++ b/module/include/mola_lidar_odometry/LidarOdometry.h
+@@ -1291,7 +1291,6 @@
+     mp2p_icp_filters::FilterPipeline pc_filterAdjustTimes;
+     mp2p_icp_filters::FilterPipeline pc_prefilter;
+     mp2p_icp_filters::FilterPipeline pc_deskew;
+-    mp2p_icp_filters::FilterPipeline pc_nav_deskew;
+     mp2p_icp_filters::FilterPipeline pc_filter1, pc_filter2, pc_filter3;
+     mp2p_icp_filters::GeneratorSet local_map_generators;
+     mp2p_icp::metric_map_t::Ptr local_map = mp2p_icp::metric_map_t::Create();
+--- a/module/include/mola_lidar_odometry/WorkerPipelineStats.h
++++ b/module/include/mola_lidar_odometry/WorkerPipelineStats.h
+@@ -20,12 +20,12 @@
+  public:
+   explicit WorkerPipelineStats(const char* csv_suffix = "") : csv_suffix_(csv_suffix) {}
+   enum Phase : std::size_t { StateWait, ImuConsume, Preprocess, Gicp, LocalMap,
+-                            PosePublish, NavCloud, MapExport, Generators, NavDeskew, EarlyDeskew, Filter1, Filter2, PhaseCount };
++                            PosePublish, NavCloud, MapExport, Generators, Deskew, Filter1, Filter2, PhaseCount };
+   enum Drop : std::size_t { ImuCapacity, ImuCatchup, WorkerAccounted, DropCount };
+   static constexpr std::size_t Capacity = 256;
+   static constexpr std::array<const char*, PhaseCount> Names = {
+       "state_wait", "imu_consume", "preprocess", "gicp", "local_map",
+-      "pose_publish", "nav_cloud", "map_export", "generators", "nav_deskew", "early_deskew", "filter1", "filter2"};
++      "pose_publish", "nav_cloud", "map_export", "generators", "deskew", "filter1", "filter2"};
+   struct Sample
+   {
+     double stamp = 0, imu_wait_ms = 0, queue_ms = 0, total_ms = 0;
+--- a/pipelines/lidar3d-gicp.yaml
++++ b/pipelines/lidar3d-gicp.yaml
+@@ -614,32 +614,12 @@
+ # Path to an (optional) user-customizable pipeline definition file. Default: empty = none.
+ observations_prefilter_file: ${MOLA_LO_OBS_PREFILTER_PIPELINE_FILE|""}
+ 
+-# Early deskew of the full raw cloud.
+-# Runs once; result is reused for decimation, viz, publish, simplemap.
+-# Skipped at runtime when !hasIMU && optimize_twist (fallback to 2nd-pass deskew).
++# Driver-filtered input is deskewed once and shared by all consumers.
+ observations_deskew_pass:
+-  # Drop near returns to remove "noise" from the vehicle body, a person
+-  # standing next to the robot (e.g. with a joystick), etc., and clamp
+-  # very far returns where small angular errors blow up into large
+-  # translational errors. metric_l_infinity → axis-aligned cube; center
+-  # is unset → anchored at base_link (the vehicle origin), *not* at the
+-  # sensor — this is intentional so the deadzone covers the whole
+-  # vehicle footprint regardless of where the sensor is mounted on it.
+-  # If you also need a sensor-anchored cut (e.g. the sensor's blind
+-  # sphere when it is mounted significantly off base_link), add an
+-  # extra filter via observations_prefilter_file.
+-  - class_name: mp2p_icp_filters::FilterByRange
+-    params:
++  - class_name: mp2p_icp_filters::FilterDeskew
++    params:
++      name: "FilterDeskew"
+       input_pointcloud_layer: "raw"
+-      output_layer_between: "raw_range_filtered"
+-      range_min: "${MOLA_MINIMUM_RANGE_FILTER|max(1.0, 0.03*ESTIMATED_OBSERVATION_RADIUS)}"
+-      range_max: "${MOLA_MAXIMUM_RANGE_FILTER|1.2*ESTIMATED_OBSERVATION_RADIUS}"
+-      metric_l_infinity: true
+-
+-  - class_name: mp2p_icp_filters::FilterDeskew
+-    params:
+-      name: "FilterDeskew (early)"
+-      input_pointcloud_layer: "raw_range_filtered"
+       output_pointcloud_layer: "deskewed"
+       method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+       ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
+@@ -650,21 +630,6 @@
+       # mp2p_icp::Parameterizable API to update them dynamically.
+       twist: [vx, vy, vz, wx, wy, wz]
+ 
+-  - class_name: mp2p_icp_filters::FilterDeleteLayer
+-    params:
+-      pointcloud_layer_to_remove: ["raw_range_filtered"]
+-
+-observations_navigation_deskew_pass:
+-  - class_name: mp2p_icp_filters::FilterDeskew
+-    params:
+-      name: "FilterDeskew (navigation full range)"
+-      input_pointcloud_layer: "raw"
+-      output_pointcloud_layer: "nav_deskewed"
+-      method: "${MOLA_DESKEW_METHOD|MotionCompensationMethod::Linear}"
+-      ignore_accelerometer: "${MOLA_DESKEW_IGNORE_ACCELEROMETER|false}"
+-      silently_ignore_no_timestamps: ${MOLA_IGNORE_NO_POINT_STAMPS|true}
+-      output_layer_class: "mrpt::maps::CGenericPointsMap"
+-      twist: [vx, vy, vz, wx, wy, wz]
+ 
+ observations_filter_1st_pass:
+   # Filters:
+@@ -740,7 +705,7 @@
+ 
+ # Pipeline starting from raw observations (passed through "Generator"), to be
+ # sent out for visualization of the sliding-window of recent clouds as a dense local map
+-# This is ONLY run when not using "use_early_deskew", that is: not using IMU, and enabling "optimize_twist"
++# This is ONLY run when not using "use_deskew", that is: not using IMU, and enabling "optimize_twist"
+ observations_filter_deskew_for_visualization:
+   - class_name: mp2p_icp_filters::FilterByRange
+     params:
+--- a/test/test_single_deskew.cpp
++++ b/test/test_single_deskew.cpp
+@@ -0,0 +1,67 @@
++#include <gtest/gtest.h>
++#include <mola_yaml/yaml_helpers.h>
++#include <mp2p_icp_filters/FilterDeskew.h>
++#include <mp2p_icp_filters/FilterDecimateAdaptive.h>
++#include <mrpt/maps/CGenericPointsMap.h>
++
++TEST(SingleDeskew, ProductionPipelineUsesFullRangeInputOnce)
++{
++  const auto config = mola::load_yaml_file(SINGLE_DESKEW_PIPELINE);
++  ASSERT_FALSE(config.has("observations_navigation_deskew_pass"));
++  const auto& filters = config["observations_deskew_pass"];
++  ASSERT_EQ(filters.asSequence().size(), 1u);
++  EXPECT_EQ(filters(0)["class_name"].as<std::string>(), "mp2p_icp_filters::FilterDeskew");
++  EXPECT_EQ(filters(0)["params"]["input_pointcloud_layer"].as<std::string>(), "raw");
++  EXPECT_EQ(filters(0)["params"]["output_pointcloud_layer"].as<std::string>(), "deskewed");
++}
++
++TEST(SingleDeskew, NavigationGeometryFieldsAndOwnershipArePreserved)
++{
++  auto raw = mrpt::maps::CGenericPointsMap::Create();
++  raw->registerField_float("t");
++  raw->registerField_float("intensity");
++  raw->registerField_uint16("ring");
++  raw->resize(300);
++  for (std::size_t i = 0; i < raw->size(); ++i) {
++    // Include both near returns and distant points formerly excluded from localization.
++    raw->setPointFast(i, i == 0 ? .1f : static_cast<float>(i), .2f, .3f);
++    raw->setPointField_float(i, "t", static_cast<float>(i) * .0003f);
++    raw->setPointField_float(i, "intensity", static_cast<float>(i));
++    raw->setPointField_uint16(i, "ring", i % 32);
++  }
++  const auto originalX = raw->getPointsBufferRef_x();
++  mp2p_icp::metric_map_t legacy, shared;
++  legacy.layers["raw"] = raw;
++  shared.layers["raw"] = raw;
++  auto configure = [](auto& filter, const std::string& output) {
++    filter.input_pointcloud_layer = "raw";
++    filter.output_pointcloud_layer = output;
++    filter.method = mp2p_icp_filters::MotionCompensationMethod::Linear;
++    filter.twist = mrpt::math::TTwist3D{.8, 0., 0., 0., 0., .2};
++  };
++  mp2p_icp_filters::FilterDeskew oldNavigation, unified;
++  configure(oldNavigation, "nav_deskewed");
++  configure(unified, "deskewed");
++  oldNavigation.filter(legacy);
++  unified.filter(shared);
++  const auto expected = std::dynamic_pointer_cast<mrpt::maps::CGenericPointsMap>(legacy.layers.at("nav_deskewed"));
++  const auto result = std::dynamic_pointer_cast<mrpt::maps::CGenericPointsMap>(shared.layers.at("deskewed"));
++  ASSERT_TRUE(expected);
++  ASSERT_TRUE(result);
++  ASSERT_EQ(result->size(), raw->size());
++  EXPECT_EQ(result->getPointsBufferRef_x(), expected->getPointsBufferRef_x());
++  EXPECT_EQ(result->getPointsBufferRef_y(), expected->getPointsBufferRef_y());
++  EXPECT_EQ(result->getPointsBufferRef_z(), expected->getPointsBufferRef_z());
++  EXPECT_EQ(result->float_fields(), expected->float_fields());
++  EXPECT_EQ(result->uint16_fields(), expected->uint16_fields());
++  const auto xBefore = result->getPointsBufferRef_x();
++  const auto fieldsBefore = result->float_fields();
++  mp2p_icp_filters::FilterDecimateAdaptive decimate;
++  decimate.params.input_pointcloud_layer = "deskewed";
++  decimate.params.outputs.push_back({"decimated_for_map", 30, 0});
++  decimate.filter(shared);
++  EXPECT_EQ(shared.layers.at("deskewed"), result);
++  EXPECT_EQ(result->getPointsBufferRef_x(), xBefore);
++  EXPECT_EQ(result->float_fields(), fieldsBefore);
++  EXPECT_EQ(raw->getPointsBufferRef_x(), originalX);
++}
+--- a/test/CMakeLists.txt
++++ b/test/CMakeLists.txt
+@@ -126,3 +126,9 @@
+ 
+ ament_add_gtest(test_worker_optimizations test_worker_optimizations.cpp)
+ target_link_libraries(test_worker_optimizations mola::mola_lidar_odometry mrpt::maps)
++
++
++ament_add_gtest(test_single_deskew test_single_deskew.cpp)
++target_link_libraries(test_single_deskew mola::mola_lidar_odometry mola::mp2p_icp_filters mola::mola_yaml)
++target_compile_definitions(test_single_deskew PRIVATE
++  SINGLE_DESKEW_PIPELINE="${mola_lidar_odometry_SOURCE_DIR}/pipelines/lidar3d-gicp.yaml")

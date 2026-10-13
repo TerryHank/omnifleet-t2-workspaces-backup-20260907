@@ -31,3 +31,14 @@ After checking out this tag, start at `src/planning/omnifleet_planner/behavior_t
 MOLA is under `src/localization/omnifleet_mola/`; MSC under `src/system/omnifleet_msc/`.
 
 Archive SHA256: `2e2785f825fa87592306354d2e7534a248cadb662450707be9571039673e36f3`.
+
+
+## Single-deskew MOLA source backup (2026-10-13)
+
+Tag: `robot113-single-deskew-20261013`. The complete compiled `mola_lidar_odometry` package and scoped
+change/test evidence are under `deployments/single-deskew-20261013`. The inherited `src/` snapshot
+remains unchanged; the new package source is under `deployments/single-deskew-20261013/source/mola_lidar_odometry`.
+
+Build, unit and recorded RSLIDAR regression checks passed. The installed robot
+process has not been restarted; runtime activation and performance validation
+remain pending. Read the scoped REPORT.md and BACKUP_MANIFEST.json before restoring.

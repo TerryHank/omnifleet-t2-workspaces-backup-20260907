@@ -1,0 +1,10 @@
+Test project /home/iecme/robot_backups/deskew_unification_20261013/build/mola_lidar_odometry
+    Start 8: test_lidar_odometry_rslidar
+1/1 Test #8: test_lidar_odometry_rslidar ......   Passed    2.34 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+gtest    =   2.34 sec*proc (1 test)
+
+Total Test time (real) =   2.35 sec

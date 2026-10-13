@@ -1,0 +1,20 @@
+Test project /home/iecme/robot_backups/deskew_unification_20261013/build/mola_lidar_odometry
+    Start  2: test_gravity_map_aligner
+1/6 Test  #2: test_gravity_map_aligner .........   Passed    0.31 sec
+    Start  3: test_keyframe_decider
+2/6 Test  #3: test_keyframe_decider ............   Passed    0.26 sec
+    Start  4: test_map_frame_relevel
+3/6 Test  #4: test_map_frame_relevel ...........   Passed    0.26 sec
+    Start  5: test_imu_scan_sync
+4/6 Test  #5: test_imu_scan_sync ...............   Passed    0.24 sec
+    Start  9: test_worker_optimizations
+5/6 Test  #9: test_worker_optimizations ........   Passed    0.58 sec
+    Start 10: test_single_deskew
+6/6 Test #10: test_single_deskew ...............   Passed    0.27 sec
+
+100% tests passed, 0 tests failed out of 6
+
+Label Time Summary:
+gtest    =   1.92 sec*proc (6 tests)
+
+Total Test time (real) =   1.93 sec
