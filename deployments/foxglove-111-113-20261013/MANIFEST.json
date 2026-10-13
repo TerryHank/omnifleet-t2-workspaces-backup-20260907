@@ -1,0 +1,104 @@
+{
+  "base_commit": "967777d38756695b4bfa1b839f32de6addbab5ba",
+  "base_tag": "robot113-source-20261013-111614",
+  "capture_date": "2026-10-13",
+  "timezone": "Asia/Shanghai",
+  "tag": "robot113-foxglove-fix-20261013-115038",
+  "repository": "TerryHank/omnifleet-t2-workspaces-backup-20260907",
+  "repository_visibility": "PUBLIC",
+  "scope": "Incremental Foxglove source and layouts; parent src tree unchanged",
+  "entries": [
+    {
+      "path": "demo-control.cjs",
+      "sha256": "28c033b364c5fcdba17c25da33d32409e2824bbe1bc37ceaa1966e780e95f437",
+      "size": 7313,
+      "git_mode": "100644"
+    },
+    {
+      "path": "Foxglove-111.cmd",
+      "sha256": "a69269190f5c9f3325197a153665dc37dac858aa8ef88e1f38c1235c1fc0b1f5",
+      "size": 161,
+      "git_mode": "100644"
+    },
+    {
+      "path": "Foxglove-113.cmd",
+      "sha256": "1e6f3dd77e9f29b859061292c70a83993a5506369990e17436cf8eb904dd7538",
+      "size": 161,
+      "git_mode": "100644"
+    },
+    {
+      "path": "local-113-control.json",
+      "sha256": "d58575953acae014fc3271cfe42e049d83d43551042eec40a52b3215a7934e4a",
+      "size": 12903,
+      "git_mode": "100644"
+    },
+    {
+      "path": "local-active-layout.json",
+      "sha256": "57840ffc22cafef86d5b6f76db951d863bb3f86e17b92954e724a9b682055840",
+      "size": 12866,
+      "git_mode": "100644"
+    },
+    {
+      "path": "LukaConsole.index.before.tsx",
+      "sha256": "4e4fcdd770e4bd3a1da220e03451ad0805a895bd2702e8bcceef79e0a3332e30",
+      "size": 3967,
+      "git_mode": "100644"
+    },
+    {
+      "path": "LukaConsole.index.with-nav2.tsx",
+      "sha256": "d19c57a66919ff0fab1f66b0f4e92520c5991425ed6b973cc278f9c636224d9e",
+      "size": 4728,
+      "git_mode": "100644"
+    },
+    {
+      "path": "Nav2PermanentPanel113.d.ts",
+      "sha256": "fce4b0aefb9a4c0efbd137919cc6bc741315051ff1ceb3dc359b4c79dfb965fb",
+      "size": 149,
+      "git_mode": "100644"
+    },
+    {
+      "path": "Nav2PermanentPanel113.js",
+      "sha256": "91b9b21678d2bff546f0f18daf064ee620ba1baba117a022961fb437d22035f1",
+      "size": 112524,
+      "git_mode": "100644"
+    },
+    {
+      "path": "README.md",
+      "sha256": "bd1005fd20b1cee2a63786945beab94bb3072e1efdcce862dcff59ab200731b3",
+      "size": 4596,
+      "git_mode": "100644"
+    },
+    {
+      "path": "robot-111-adapted.json",
+      "sha256": "24a51b4982c756d0ae3f06f459489d8a3759b72e65c6efe6e5733b25896cc349",
+      "size": 6829,
+      "git_mode": "100644"
+    },
+    {
+      "path": "robot113-remote-layout.json",
+      "sha256": "56eb5c65ff71be8bdc733d693e60ea5fb0bbff82bc0ab523e3127d08d3940584",
+      "size": 16143,
+      "git_mode": "100644"
+    },
+    {
+      "path": "switch_robot.py",
+      "sha256": "5dc0eee9cef0e3cadfc5caaede7e7ad482b98d345eb61b30495b83c0d92abe84",
+      "size": 2641,
+      "git_mode": "100644"
+    }
+  ],
+  "secret_candidate_scan": "PASS for configured private-key, token and literal-credential patterns",
+  "excluded": [
+    "credentials",
+    "API configuration tokens",
+    "app.asar",
+    "compiled frontend bundles",
+    "node_modules",
+    "python-deps",
+    "cache",
+    "recordings",
+    "historical backups"
+  ],
+  "live_deployment_validation": "Configuration readback and display only; no motion or parameter writes",
+  "source_adapter_build": "Equivalent source integration supplied; independent rebuild pending"
+}
