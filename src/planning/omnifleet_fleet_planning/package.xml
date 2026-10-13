@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>omnifleet_fleet_planning</name>
+  <version>0.1.0</version>
+  <description>Fleet grid planning, traffic conflicts, maneuvers and task dispatch.</description>
+  <maintainer email="iecme@example.com">iecme</maintainer>
+  <license>Apache-2.0</license>
+  <license>MIT</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <depend>omnifleet_fleet_common</depend>
+  <depend>omnifleet_fleet_control</depend>
+  <depend>python3-numpy</depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

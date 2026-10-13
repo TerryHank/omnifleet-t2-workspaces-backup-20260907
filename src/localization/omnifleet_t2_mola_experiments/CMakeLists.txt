@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.8)
+project(omnifleet_t2_mola_experiments)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS scripts/fresh_pointcloud_filter.py scripts/base_link_rslidar_tf.py scripts/foxglove_layer_offset.py scripts/cleanup_unified_application_nodes.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/nav2_readiness_gate.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/lidar_velocity.py scripts/mola_realtime_nav_grid.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/nav_cloud_deskew scripts/airy_imu_adapter_buffered
+  DESTINATION lib/${PROJECT_NAME})
+ament_package()

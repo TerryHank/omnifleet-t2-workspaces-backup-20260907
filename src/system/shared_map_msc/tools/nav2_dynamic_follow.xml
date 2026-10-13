@@ -1,0 +1,21 @@
+<!--
+  This Behavior Tree follows a dynamic pose to a certain distance
+-->
+
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Timeout msec="90000"><PipelineSequence name="NavigateWithReplanning">
+      <RateController hz="1.0">
+        <Sequence>
+          <GoalUpdater input_goal="{goal}" output_goal="{updated_goal}">
+            <ComputePathToPose goal="{updated_goal}" path="{path}" planner_id="GridBased"/>
+          </GoalUpdater>
+         <!-- GoalUpdater receives a virtual goal already offset behind the leader. -->
+        </Sequence>
+      </RateController>
+      <KeepRunningUntilFailure>
+        <FollowPath path="{path}" controller_id="FollowPathMPPI" goal_checker_id="general_goal_checker"/>
+      </KeepRunningUntilFailure>
+    </PipelineSequence></Timeout>
+  </BehaviorTree>
+</root>

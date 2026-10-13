@@ -1,0 +1,1 @@
+../../../system/omnifleet_bringup/scripts/cleanup_unified_application_nodes.py

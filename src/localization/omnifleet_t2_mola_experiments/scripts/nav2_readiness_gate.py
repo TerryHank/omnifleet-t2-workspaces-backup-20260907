@@ -1,0 +1,1 @@
+../../../system/omnifleet_bringup/scripts/nav2_readiness_gate.py

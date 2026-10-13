@@ -1,0 +1,25 @@
+{
+  "robots": {
+    "robot_113": {
+      "radius": 0.37,
+      "length": 0.5,
+      "width": 0.37,
+      "padding": 0.05
+    },
+    "robot_104": {
+      "radius": 0.37,
+      "length": 0.5,
+      "width": 0.37,
+      "padding": 0.05
+    }
+  },
+  "reference_robot": "robot_113",
+  "keys": {
+    "robot_104": "REDACTED_BACKUP_SECRET",
+    "robot_113": "REDACTED_BACKUP_SECRET",
+    "operator": "REDACTED_BACKUP_SECRET"
+  },
+  "bind": "0.0.0.0",
+  "port": 8898,
+  "journal": "/home/iecme/.local/share/omnifleet_msc/coordinator.json"
+}

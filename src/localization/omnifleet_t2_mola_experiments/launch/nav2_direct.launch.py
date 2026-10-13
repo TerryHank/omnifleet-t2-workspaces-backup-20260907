@@ -1,0 +1,1 @@
+../../../planning/omnifleet_fleet_planning/launch/nav2_direct.launch.py
